@@ -1,0 +1,13 @@
+scipy
+numpy
+matplotlib
+scikit-learn
+pandas
+peakdetect
+plotly
+seaborn
+tensorflow==2.2.1
+keras==2.3.1
+pydot
+graphviz
+networkx

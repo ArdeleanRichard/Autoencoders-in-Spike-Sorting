@@ -541,21 +541,21 @@ def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index
 SIM_NR = 4
 EPOCHS = 100
 LAYERS = [70, 60, 50, 40, 30,20,10,5]
-# ae_type = 'normal'
-# run_autoencoder(data_type="sim", simulation_number=SIM_NR,
-#                 data=None, labels=None, gt_labels=None, index=None,
-#                 ae_type="normal", ae_layers=np.array(LAYERS), code_size=2,
-#                 output_activation='tanh', loss_function='mse', scale="minmax", nr_epochs=EPOCHS, dropout=0.0,
-#                 doPlot=True)
-# run_autoencoder(data_type="sim", simulation_number=SIM_NR,
-#                 data=None, labels=None, gt_labels=None, index=None,
-#                 ae_type="tied", ae_layers=np.array(LAYERS), code_size=2,
-#                 output_activation='tanh', loss_function='mse', scale="minmax", nr_epochs=EPOCHS, dropout=0.0,
-#                 doPlot=True)
+ae_type = 'normal'
+run_autoencoder(data_type="sim", simulation_number=SIM_NR,
+                data=None, labels=None, gt_labels=None, index=None,
+                ae_type="normal", ae_layers=np.array(LAYERS), code_size=2,
+                output_activation='tanh', loss_function='mse', scale="minmax", nr_epochs=EPOCHS, dropout=0.0,
+                doPlot=True)
+run_autoencoder(data_type="sim", simulation_number=SIM_NR,
+                data=None, labels=None, gt_labels=None, index=None,
+                ae_type="tied", ae_layers=np.array(LAYERS), code_size=2,
+                output_activation='tanh', loss_function='mse', scale="minmax", nr_epochs=EPOCHS, dropout=0.0,
+                doPlot=True)
 
 
 ##### CHECK CLUSTERING METRICS AND FE METRICS
-def compute_retard_metrics(components, scaling, features, gt_labels):
+def compute_metrics(components, scaling, features, gt_labels):
     try:
         kmeans_labels1 = KMeans(n_clusters=len(np.unique(gt_labels))).fit_predict(features)
         kmeans_labels1 = np.array(kmeans_labels1)
@@ -618,7 +618,7 @@ def compute_retard_metrics(components, scaling, features, gt_labels):
 #                         doPlot=False, verbose=0, shuff=True)
 #         scatter_plot.plot(f'Autoencoder on Sim{SIM_NR}', features, gt, marker='o')
 #         plt.savefig(f"./feature_extraction/autoencoder/analysis/" + f'{ae_type}_sim{SIM_NR}_plot{i}')
-#         met = compute_retard_metrics(None, None, features, gt)
+#         met = compute_metrics(None, None, features, gt)
 #         metrics.append(met)
 #     np.savetxt(f"./feature_extraction/autoencoder/analysis/{ae_type}_sim{SIM_NR}.csv", np.around(a=np.array(metrics).transpose(), decimals=3), delimiter=",")
 
@@ -789,35 +789,35 @@ def get_M045_009():
 
 
 
-
-for index in [6, 17, 26]:
-    for ae_type in [ "shallow", "normal", "tied", "contractive", "orthogonal", "ae_pca", "ae_pt", "lstm", "fft",  "wfft"]:
-        print(f"AE{ae_type}")
-        metrics = []
-        for i in range(1, 10):
-            print(i)
-            units_in_channel, labels = get_M045_009()
-            spikes = units_in_channel[index-1]
-            spikes = np.array(spikes)
-
-            features, _, gt = run_autoencoder(data_type="m0", simulation_number=None,
-                            data=spikes, labels=None, gt_labels=None, index=None,
-                            ae_type=ae_type, ae_layers=np.array(LAYERS), code_size=2,
-                            output_activation='tanh', loss_function='mse', scale="minmax", nr_epochs=EPOCHS, dropout=0.0,
-                            doPlot=False, verbose=0, shuff=True)
-
-            if index == 6:
-                met, klabels = compute_real_metrics(features, 4)
-            if index == 17:
-                met, klabels = compute_real_metrics(features, 3)
-            if index == 26:
-                met, klabels = compute_real_metrics(features, 4)
-
-            scatter_plot.plot(f'K-Means on C37', features, klabels, marker='o')
-            plt.savefig(f"./feature_extraction/autoencoder/analysis/m045_{index}_data/" + f'{ae_type}_m045_{index}_km_plot{i}')
-
-            metrics.append(met)
-        np.savetxt(f"./feature_extraction/autoencoder/analysis/m045_{index}_data/{ae_type}_m045_{index}.csv", np.around(a=np.array(metrics).transpose(), decimals=3), delimiter=",")
+# RUN REAL
+# for index in [4, 6, 17, 26]:
+#     for ae_type in [ "shallow", "normal", "tied", "contractive", "orthogonal", "ae_pca", "ae_pt", "lstm", "fft",  "wfft"]:
+#         print(f"AE{ae_type}")
+#         metrics = []
+#         for i in range(1, 10):
+#             print(i)
+#             units_in_channel, labels = get_M045_009()
+#             spikes = units_in_channel[index-1]
+#             spikes = np.array(spikes)
+#
+#             features, _, gt = run_autoencoder(data_type="m0", simulation_number=None,
+#                             data=spikes, labels=None, gt_labels=None, index=None,
+#                             ae_type=ae_type, ae_layers=np.array(LAYERS), code_size=2,
+#                             output_activation='tanh', loss_function='mse', scale="minmax", nr_epochs=EPOCHS, dropout=0.0,
+#                             doPlot=False, verbose=0, shuff=True)
+#
+#             if index == 6:
+#                 met, klabels = compute_real_metrics(features, 4)
+#             if index == 17:
+#                 met, klabels = compute_real_metrics(features, 3)
+#             if index == 26:
+#                 met, klabels = compute_real_metrics(features, 4)
+#
+#             scatter_plot.plot(f'K-Means on C37', features, klabels, marker='o')
+#             plt.savefig(f"./feature_extraction/autoencoder/analysis/m045_{index}_data/" + f'{ae_type}_m045_{index}_km_plot{i}')
+#
+#             metrics.append(met)
+#         np.savetxt(f"./feature_extraction/autoencoder/analysis/m045_{index}_data/{ae_type}_m045_{index}.csv", np.around(a=np.array(metrics).transpose(), decimals=3), delimiter=",")
 
 
 
@@ -1043,7 +1043,7 @@ def calculate_metrics_table():
                                                                   output_activation=output_activation, loss_function=loss_function,
                                                                   scale=scaling, shuff=True)
 
-            metrics_saved.append(compute_retard_metrics(components, scaling, features, labels, gt_labels))
+            metrics_saved.append(compute_metrics(components, scaling, features, labels, gt_labels))
 
     np.savetxt(f"./feature_extraction/autoencoder/analysis/analysis_c37_{method}.csv", np.around(np.array(metrics_saved), decimals=3).transpose(), delimiter=",")
 
@@ -1143,7 +1143,7 @@ def calculate_metrics_specific(spikes, labels, gt_labels, method="PCA", componen
                                                           loss_function=loss_function,
                                                           scale=scaling, shuff=True)
 
-    return compute_retard_metrics(components, scaling, features, labels, gt_labels)
+    return compute_metrics(components, scaling, features, gt_labels)
 
 
 def create_plot_metrics(data="C37", components=2, scaling="minmax"):

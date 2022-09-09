@@ -24,7 +24,6 @@ from utils.constants import autoencoder_layer_sizes, autoencoder_code_size, lstm
 from feature_extraction.autoencoder.model_auxiliaries import verify_output, get_codes, verify_random_outputs
 from feature_extraction.autoencoder.autoencoder import AutoencoderModel
 from sklearn.tree import DecisionTreeClassifier
-from utils.sbm.SBM_functions import distance
 import matplotlib as mpl
 mpl.rc('figure', max_open_warning = 0)
 
@@ -66,10 +65,10 @@ def main(program, sub=""):
         scatter_plot.plot('GT' + str(len(autoencoder_features)), autoencoder_features, labels, marker='o')
         plt.savefig(f'./feature_extraction/autoencoder/testfigs/gt_model_cs{code_size}_oa-tanh_ls-bcs_sim{simulation_number}')
 
-        pn = 25
-        labels = SBM.best(autoencoder_features, pn, ccThreshold=5, version=2)
-        scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels, marker='o')
-        plt.savefig(f'./feature_extraction/autoencoder/testfigs/gt_model_cs{code_size}_oa-tanh_ls-bcs_sim{simulation_number}_sbm')
+        # pn = 25
+        # labels = SBM.best(autoencoder_features, pn, ccThreshold=5, version=2)
+        # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels, marker='o')
+        # plt.savefig(f'./feature_extraction/autoencoder/testfigs/gt_model_cs{code_size}_oa-tanh_ls-bcs_sim{simulation_number}_sbm')
 
     elif program == "autoencoder_single_sim":
         range_min = 1
@@ -309,12 +308,12 @@ def main(program, sub=""):
                 scatter_plot.plot('GT' + str(len(autoencoder_features)), autoencoder_features, labels, marker='o')
                 plt.savefig(f'./figures/autoencoder/gt_model_sim{simulation_number}')
 
-                pn = 25
-                labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
-
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
-                                       marker='o')
-                plt.savefig(f'./figures/autoencoder/gt_model_sim{simulation_number}_sbm')
+                # pn = 25
+                # labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                #
+                # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                #                        marker='o')
+                # plt.savefig(f'./figures/autoencoder/gt_model_sim{simulation_number}_sbm')
         else:
             pass
 
@@ -374,12 +373,12 @@ def main(program, sub=""):
                     scatter_plot.plot('GT' + str(len(autoencoder_features)), autoencoder_features, labels, marker='o')
                     plt.savefig(f'{plot_path}/gt_model_sim{simulation_number}')
 
-                    pn = 25
-                    labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
-
-                    scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
-                                           marker='o')
-                    plt.savefig(f'{plot_path}/gt_model_sim{simulation_number}_sbm')
+                    # pn = 25
+                    # labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                    #
+                    # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                    #                        marker='o')
+                    # plt.savefig(f'{plot_path}/gt_model_sim{simulation_number}_sbm')
             elif sub == "pre":
                 autoencoder_layer_sizes.append(autoencoder_code_size)
                 layer_weights = autoencoder.pre_train(spikes, autoencoder_layer_sizes, epochs=100)
@@ -472,15 +471,15 @@ def main(program, sub=""):
                 scatter_plot.plot(f'GT{len(autoencoder_features)}/{len(train_spikes)+len(spikes)}', autoencoder_features, labels, marker='o')
                 plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
-                pn = 25
-                try:
-                    labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
-
-                    scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
-                                           marker='o')
-                    plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
-                except KeyError:
-                    pass
+                # pn = 25
+                # try:
+                #     labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                #
+                #     scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                #                            marker='o')
+                #     plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+                # except KeyError:
+                #     pass
 
                 sim_list_index += 1
 

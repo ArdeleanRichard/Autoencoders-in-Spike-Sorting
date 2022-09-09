@@ -300,4 +300,4 @@ def evaluate(method):
 
 evaluate('pca')
 evaluate('ica')
-evaluate('isomap')
+# evaluate('isomap')
