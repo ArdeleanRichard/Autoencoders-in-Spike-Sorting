@@ -1,20 +1,29 @@
 import os
 import statistics
 import time
+
+import sklearn
 from scipy.fftpack import fft
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.signal import windows
-from sklearn import metrics
+from sklearn import metrics, preprocessing
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score, silhouette_samples, calinski_harabasz_score, davies_bouldin_score, silhouette_score, homogeneity_completeness_v_measure
+from sklearn.utils import shuffle
 
 from feature_extraction.autoencoder import lstm_input, fft_input
+from feature_extraction.autoencoder.autoencoder_pca_principles.autoencoder_pca_model import AutoencoderPCAModel
 from feature_extraction.autoencoder.benchmark import validate_model
 from feature_extraction.autoencoder.fft_input import fft_padded_spike
 from feature_extraction.autoencoder.lstm_autoencoder import LSTMAutoencoderModel
 from feature_extraction.autoencoder.lstm_input import lstm_get_codes
+from feature_extraction.autoencoder.scaling import spike_scaling_min_max, spike_scaling_ignore_amplitude, \
+    get_spike_energy
+from main_autoencoder import run_autoencoder
+from parameters import MODEL_PATH, PLOT_PATH, output_activation, loss_function
+from run_utils import choose_scale, compute_metrics
 from utils.sbm import SBM, SBM_graph_merge, SBM_graph
 from utils.dataset_parsing import simulations_dataset as ds
 from utils.dataset_parsing import simulations_dataset_autoencoder as dsa
@@ -1410,24 +1419,6 @@ def main_ensemble_stacked():
     print(np.average(results_ensemble_blackman, axis=0))
     print(np.average(results_ensemble_gaussian, axis=0))
 
-
-def get_type(on_type, fft_real, fft_imag):
-    if on_type == "real":
-        spikes = fft_real
-    elif on_type == "imag":
-        spikes = fft_imag
-    elif on_type == "magnitude":
-        spikes = np.sqrt(fft_real * fft_real + fft_imag * fft_imag)
-    elif on_type == "power":
-        spikes = fft_real * fft_real + fft_imag * fft_imag
-    elif on_type == "phase":
-        spikes = np.arctan2(fft_imag, fft_real)
-    elif on_type == "concatenated":
-        power = fft_real * fft_real + fft_imag * fft_imag
-        phase = np.arctan2(fft_imag, fft_real)
-        spikes = np.concatenate((power, phase), axis=1)
-
-    return spikes
 
 
 def test_fft_padding_types():
@@ -3229,3 +3220,306 @@ def main_autoencoder_expansion(program):
 # main("benchmark_pca", sub="")
 
 # main("autoencoder_sim_range", sub="test")
+
+
+
+
+
+#autoencoder_layer_sizes = [40, 35, 30, 25, 20, 15, 10, 5], code_size=2
+def run_autoencoder_selected(simulation_number, autoencoder_layer_sizes, code_size, output_activation, loss_function, scale, shuff=True):
+    spikes, labels = ds.get_dataset_simulation(simNr=simulation_number)
+    print(spikes.shape)
+    nr_epochs = 100
+
+    if shuff == True:
+        spikes, labels = shuffle(spikes, labels, random_state=None)
+
+    spikes = spikes[:, 20:60]
+    print(spikes.shape)
+
+
+    amplitudes = np.amax(spikes, axis=1)
+    print(len(amplitudes))
+
+    spikes = choose_scale(spikes, scale)
+
+    input_size = len(spikes[0])
+    autoencoder = AutoencoderModel(input_size=input_size,
+                                   encoder_layer_sizes=autoencoder_layer_sizes,
+                                   decoder_layer_sizes=autoencoder_layer_sizes,
+                                   code_size=code_size,
+                                   output_activation=output_activation,
+                                   loss_function=loss_function)
+    autoencoder.train(spikes, epochs=nr_epochs)
+    autoencoder.save_weights(
+        MODEL_PATH + f'autoencoder{input_size}_cs{code_size}_scale{scale}_oa-{output_activation}_ls-{loss_function}_sim{simulation_number}_e{nr_epochs}')
+    # autoencoder.load_weights('./feature_extraction/autoencoder/weights/autoencoder_cs{code_size}_oa-tanh_sim4_e100')
+    encoder, autoencoder = autoencoder.return_encoder()
+
+    verify_output(spikes, encoder, autoencoder, path=PLOT_PATH)
+    autoencoder_features = get_codes(spikes, encoder)
+
+    print(autoencoder_features.shape)
+
+    scatter_plot.plot('GT' + str(len(autoencoder_features)), autoencoder_features, labels, marker='o')
+    plt.savefig(
+        PLOT_PATH + f'gt_model{input_size}_cs{code_size}_scale{scale}_oa-{output_activation}_ls-{loss_function}_sim{simulation_number}_e{nr_epochs}')
+
+    return autoencoder_features
+# run_autoencoder_selected(simulation_number, output_activation, loss_function, scale='minmax', shuff=True)
+
+
+def run_orthogonal_autoencoder(activation):
+    spikes, labels = ds.get_dataset_simulation(simNr=4)
+    spikes, labels = shuffle(spikes, labels, random_state=None)
+    spikes = spike_scaling_min_max(spikes, min_peak=np.amin(spikes), max_peak=np.amax(spikes))
+    #spikes = (spikes * 2) - 1
+
+    input_dim = spikes.shape[1]  # num of predictor variables,
+    # activation = 'tanh'
+    loss = 'mse'
+    model = AutoencoderPCAModel(input_dim, 2, activation, loss)
+    model.train(spikes, epochs=100)
+
+    encoder, autoencoder = model.return_encoder()
+
+    train_predictions = autoencoder.predict(spikes)
+    print('Train reconstrunction error\n', sklearn.metrics.mean_squared_error(spikes, train_predictions))
+
+    code_predictions = encoder.predict(spikes)
+    print(code_predictions)
+
+    scatter_plot.plot('GT' + str(len(code_predictions)), code_predictions, labels, marker='o')
+
+    plt.figure()
+    plt.plot(np.arange(len(spikes[0])), spikes[0], label="original")
+    plt.plot(np.arange(len(train_predictions[0])), train_predictions[0], label="reconstructed")
+    plt.xlabel('Time')
+    plt.ylabel('Magnitude')
+    plt.legend(loc="upper left")
+    plt.title(f"Verify spike 0")
+    plt.show()
+# run_orthogonal_autoencoder('linear')
+# run_orthogonal_autoencoder('spp')
+# run_orthogonal_autoencoder('tanh')
+
+
+def combine_autoencoders(simulation_number, loss_function, shuff=True):
+    spikes, labels = ds.get_dataset_simulation(simNr=simulation_number)
+
+    if shuff == True:
+        spikes, labels = shuffle(spikes, labels, random_state=None)
+    output_activation = 'tanh'
+    ae_layers = [70,60,50,40,30,20,10,5]
+    code_size = 2
+    ae_features1 = run_autoencoder(simulation_number, ae_layers, code_size, output_activation, loss_function, scale='')
+    ae_features2 = run_autoencoder(simulation_number, ae_layers, code_size, output_activation, loss_function, scale='minmax')
+    output_activation = 'spp'
+    ae_features3 = run_autoencoder(simulation_number, ae_layers, code_size, output_activation, loss_function, scale='')
+    ae_features4 = run_autoencoder(simulation_number, ae_layers, code_size, output_activation, loss_function, scale='minmax_spp')
+
+
+    ae_features1 = preprocessing.MinMaxScaler((0, 1)).fit_transform(ae_features1)
+    ae_features2 = preprocessing.MinMaxScaler((0, 1)).fit_transform(ae_features2)
+    ae_features3 = preprocessing.MinMaxScaler((0, 1)).fit_transform(ae_features3)
+    ae_features4 = preprocessing.MinMaxScaler((0, 1)).fit_transform(ae_features4)
+
+    ae_features1 = ae_features1*2 + 1
+    ae_features2 = ae_features2*2 + 1
+    ae_features3 = ae_features3*2 + 1
+    ae_features4 = ae_features4*2 + 1
+
+    scatter_plot.plot('GT' + str(len(ae_features1)), ae_features1, labels, marker='o')
+    plt.savefig(PLOT_PATH + f'gt_model_combo_cs{code_size}_ls-{loss_function}_sim{simulation_number}_1')
+    scatter_plot.plot('GT' + str(len(ae_features2)), ae_features2, labels, marker='o')
+    plt.savefig(PLOT_PATH + f'gt_model_combo_cs{code_size}_ls-{loss_function}_sim{simulation_number}_2')
+    scatter_plot.plot('GT' + str(len(ae_features3)), ae_features3, labels, marker='o')
+    plt.savefig(PLOT_PATH + f'gt_model_combo_cs{code_size}_ls-{loss_function}_sim{simulation_number}_3')
+    scatter_plot.plot('GT' + str(len(ae_features4)), ae_features4, labels, marker='o')
+    plt.savefig(PLOT_PATH + f'gt_model_combo_cs{code_size}_ls-{loss_function}_sim{simulation_number}_4')
+
+
+
+    autoencoder_features = ae_features1 * ae_features2 * ae_features3 * ae_features4
+
+    scatter_plot.plot('GT' + str(len(autoencoder_features)), autoencoder_features, labels, marker='o')
+    plt.savefig(PLOT_PATH + f'gt_model_combo_mul_cs{code_size}_ls-{loss_function}_sim{simulation_number}')
+
+    autoencoder_features = ae_features1 + ae_features2 + ae_features3 + ae_features4
+
+    scatter_plot.plot('GT' + str(len(autoencoder_features)), autoencoder_features, labels, marker='o')
+    plt.savefig(PLOT_PATH + f'gt_model_combo_add_cs{code_size}_ls-{loss_function}_sim{simulation_number}')
+# combine_autoencoders(simulation_number, loss_function, shuff=True)
+
+
+
+
+
+def run_autoencoder_cascaded(simulation_number, autoencoder_layer_sizes, code_size, output_activation, loss_function, scale, shuff=True):
+    spikes, labels = ds.get_dataset_simulation(simNr=simulation_number)
+    print(spikes.shape)
+    nr_epochs = 100
+
+    if shuff == True:
+        spikes, labels = shuffle(spikes, labels, random_state=None)
+
+    if scale == 'minmax':
+        # plot_spikes(spikes, title='scale_no', path=PLOT_PATH, show=False, save=True)
+        spikes_scaled = spike_scaling_min_max(spikes, min_peak=np.amin(spikes), max_peak=np.amax(spikes))
+        # plot_spikes(spikes_scaled, title='scale_min_max', path=PLOT_PATH, show=False, save=True)
+        spikes = (spikes_scaled * 2) - 1
+        # plot_spikes(spikes_scaled, title='scale_mod_-1_1', path=PLOT_PATH, show=False, save=True)
+
+
+    autoencoder = AutoencoderModel(input_size=len(spikes[0]),
+                                   encoder_layer_sizes=autoencoder_layer_sizes,
+                                   decoder_layer_sizes=autoencoder_layer_sizes,
+                                   code_size=code_size,
+                                   output_activation=output_activation,
+                                   loss_function=loss_function)
+    autoencoder.train(spikes, epochs=nr_epochs)
+    autoencoder.save_weights(
+        MODEL_PATH + f'autoencoder_cs{code_size}_oa-{output_activation}_ls-{loss_function}_sim{simulation_number}_e{nr_epochs}')
+
+    encoder, autoencoder = autoencoder.return_encoder()
+
+    verify_output(spikes, encoder, autoencoder, path=PLOT_PATH)
+    autoencoder_reconstructions = get_reconstructions(spikes, autoencoder)
+
+    print(autoencoder_reconstructions.shape)
+
+    autoencoder_cascaded = AutoencoderModel(input_size=len(autoencoder_reconstructions[0]),
+                                   encoder_layer_sizes=autoencoder_layer_sizes,
+                                   decoder_layer_sizes=autoencoder_layer_sizes,
+                                   code_size=code_size,
+                                   output_activation=output_activation,
+                                   loss_function=loss_function)
+    autoencoder_cascaded.train(autoencoder_reconstructions, epochs=nr_epochs)
+    encoder_cascaded, autoencoder_cascaded = autoencoder_cascaded.return_encoder()
+
+    verify_output(autoencoder_reconstructions, encoder_cascaded, autoencoder_cascaded, i=1, path=PLOT_PATH)
+    autoencoder_features = get_codes(autoencoder_reconstructions, encoder_cascaded)
+
+    scatter_plot.plot('GT' + str(len(autoencoder_features)), autoencoder_features, labels, marker='o')
+    plt.savefig(PLOT_PATH + f'gt_model_cascaded_cs{code_size}_oa-{output_activation}_ls-{loss_function}_sim{simulation_number}_e{nr_epochs}')
+# run_autoencoder_cascaded(simulation_number, output_activation, loss_function, scale='minmax', shuff=True)
+
+
+
+
+
+
+
+def plot_metrics_clustering_eval(title, pca, oae, xlabel, ylabel):
+    max_saved = max(oae[5], pca[5])
+    oae[5] = oae[5] / max_saved
+    pca[5] = pca[5] / max_saved
+
+    max_saved = max(oae[4], pca[4])
+    oae[4] = oae[4] / max_saved
+    pca[4] = pca[4] / max_saved
+
+    plt.title(title)
+    plt.plot([0, 1], [0, 1], 'g--')
+    plt.scatter(pca, oae, c=[0,0,0,0,1,0,0])
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.show()
+
+
+def plot_metrics_fe_eval(title, pca, oae, xlabel, ylabel):
+    max_saved = max(oae[0], pca[0])
+    oae[0] = oae[0] / max_saved
+    pca[0] = pca[0] / max_saved
+
+    max_saved = max(oae[1], pca[1])
+    oae[1] = oae[1] / max_saved
+    pca[1] = pca[1] / max_saved
+
+    plt.title(title)
+    plt.plot([-0.5, 1], [-0.5, 1], 'g--')
+    plt.scatter(pca, oae, c=[1,0,0])
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.show()
+
+
+
+def calculate_metrics_specific(spikes, labels, gt_labels, method="PCA", components=2, scaling="-"):
+    spikes = np.array(spikes)
+    labels = np.array(labels)
+    if method == "PCA":
+        spikes = choose_scale(spikes[0], scaling)
+        pca_instance = PCA(n_components=components)
+        features = pca_instance.fit_transform(spikes)
+    elif method == "AE":
+        if components == 20:
+            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
+                                                          labels=labels, gt_labels=gt_labels, index=0,
+                                                          ae_type="normal",
+                                                          ae_layers=np.array([50, 40, 30, 20, 10, 5]),
+                                                          code_size=components,
+                                                          output_activation=output_activation,
+                                                          loss_function=loss_function,
+                                                          scale=scaling, shuff=True, nr_epochs=100)
+
+        else:
+            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
+                                                          labels=labels, gt_labels=gt_labels, index=0,
+                                                          ae_type="normal",
+                                                          ae_layers=np.array([50, 40, 30, 20, 10, 5]),
+                                                          code_size=components,
+                                                          output_activation=output_activation,
+                                                          loss_function=loss_function,
+                                                          scale=scaling, shuff=True, nr_epochs=100)
+    elif method == "Orthogonal AE":
+        if components == 20:
+            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
+                                                          labels=labels, gt_labels=gt_labels, index=0,
+                                                          ae_type="orthogonal",
+                                                          ae_layers=[60, 50, 40, 30], code_size=components,
+                                                          output_activation=output_activation,
+                                                          loss_function=loss_function,
+                                                          scale=scaling, shuff=True)
+        else:
+            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
+                                                          labels=labels, gt_labels=gt_labels, index=0,
+                                                          ae_type="orthogonal",
+                                                          ae_layers=[40, 20, 10, 5], code_size=components,
+                                                          output_activation=output_activation,
+                                                          loss_function=loss_function,
+                                                          scale=scaling, shuff=True)
+
+    return compute_metrics(components, scaling, features, gt_labels)
+
+
+def create_plot_metrics(data="C37", components=2, scaling="minmax"):
+    if data=="C28":
+        spikes, labels, gt_labels = read_kampff_c28()
+    elif data=="C37":
+        spikes, labels, gt_labels = read_kampff_c37()
+
+
+    # for components in [2, 3, 20]:
+    # for scaling in ["-", "minmax", "divide_amplitude"]:
+
+    method1 = "PCA"
+    # method2 = "AE"
+    method2 = "AE"
+    non_determenistic_runs = 10
+    metrics1 = calculate_metrics_specific(spikes, labels, gt_labels, method=method1, components=components, scaling=scaling)
+
+    sum = []
+    for i in range(non_determenistic_runs):
+        metrics2 = calculate_metrics_specific(spikes, labels, gt_labels, method=method2, components=components, scaling=scaling)
+        sum.append(metrics2)
+
+    sum = np.array(sum)
+    metrics2 = np.mean(sum, axis=0)
+
+    plot_metrics_clustering_eval(f"{data} - {components}D - {scaling}", metrics1[:7], metrics2[:7], method1, method2)
+    plot_metrics_fe_eval(f"{data} - {components}D - {scaling}", metrics1[7:], metrics2[7:], method1, method2)
+
+
+
+# create_plot_metrics()

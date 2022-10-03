@@ -13,6 +13,7 @@ from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score, sil
     calinski_harabasz_score, davies_bouldin_score, silhouette_score, homogeneity_completeness_v_measure, \
     v_measure_score, fowlkes_mallows_score
 
+from run_utils import compute_metrics, compare_metrics
 from utils.constants import LABEL_COLOR_MAP
 from utils.dataset_parsing.simulations_dataset import get_dataset_simulation
 from utils.sbm import SBM, SBM_graph, SBM_graph_merge
@@ -186,6 +187,43 @@ def main(program):
         print(f"PCA -> CHS - {mean_values[5]}")
         print(f"PCA -> DBS - {mean_values[6]}")
         print(f"PCA -> SS - {mean_values[7]}")
+    elif program == "pca_reconstruction":
+        simulation_number = 4
+        ### PCA verify
+        spikes, labels = ds.get_dataset_simulation(simNr=simulation_number)
+        spikes = spikes[labels != 0]
+        labels = labels[labels != 0]
+        compare_metrics("Full", spikes, labels, len(np.unique(labels)))
+        pca_2d = PCA(n_components=20)
+        pca_features = pca_2d.fit_transform(spikes)
+        print(np.cumsum(np.round(pca_2d.explained_variance_ratio_, decimals=3) * 100))
+        compare_metrics("PCA20D", pca_features, labels, len(np.unique(labels)))
+        pca_2d = PCA(n_components=2)
+        pca_features = pca_2d.fit_transform(spikes)
+        compare_metrics("PCA2D", pca_features, labels, len(np.unique(labels)))
+
+        ### PCA spike reconstruction
+        spikes, labels = ds.get_dataset_simulation(simNr=simulation_number)
+
+        spikes = spikes[labels != 0]
+        labels = labels[labels != 0]
+
+        chosen_spike = spikes[0]
+
+        pca = PCA(n_components=2)
+        spikes_pca = pca.fit_transform(spikes)
+        spikes_projected = pca.inverse_transform(spikes_pca)
+        loss = np.sum((spikes - spikes_projected) ** 2, axis=1).mean()
+
+        plt.figure()
+        plt.plot(np.arange(len(spikes[0])), spikes[0], label="original")
+        # plt.plot(encoded_spike, c="red", marker="o")
+        plt.plot(np.arange(len(spikes_projected[0])), spikes_projected[0], label="reconstructed")
+        plt.xlabel('Time')
+        plt.ylabel('Magnitude')
+        plt.legend(loc="upper left")
+        plt.title(f"Verify PCA 2D")
+        plt.show()
 
 # main("pca_variance")
 # main("pca")
@@ -211,7 +249,6 @@ def test_scale_normalize():
     plt.legend(loc="upper left")
     plt.title(f"Verify spike {0}")
     plt.savefig(f'{spike_verif_path}spikes0')
-
 
 # test_scale_normalize()
 
@@ -259,59 +296,13 @@ def apply_kmeans(simulation_number):
     plt.savefig(f'./figures/sim{simulation_number}_kmeans')
 
 
-alignment_show()
+# alignment_show()
 # apply_kmeans(4)
 
 
 
 
-##### CHECK CLUSTERING METRICS AND FE METRICS
-def compute_metrics(components, scaling, features, gt_labels):
-    kmeans_labels1 = KMeans(n_clusters=len(np.unique(gt_labels))).fit_predict(features)
-    kmeans_labels1 = np.array(kmeans_labels1)
-    gt_labels = np.array(gt_labels)
-    # kmeans_labels2 = KMeans(n_clusters=2).fit_predict(features)
 
-    # print("Full Labeled")
-    # print(f"C{components} -> S{scaling} -> ClustEval:   {adjusted_rand_score(kmeans_labels1, labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:   {adjusted_mutual_info_score(kmeans_labels1, labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:   {v_measure_score(kmeans_labels1, labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:   {fowlkes_mallows_score(kmeans_labels1, labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:   {davies_bouldin_score(features, kmeans_labels1):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:   {calinski_harabasz_score(features, kmeans_labels1):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:   {silhouette_score(features, kmeans_labels1):.3f}")
-    # print(f"C{components} -> S{scaling} -> FE-Eval:     {davies_bouldin_score(features, labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> FE-Eval:     {calinski_harabasz_score(features, labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> FE-Eval:     {silhouette_score(features, labels):.3f}")
-
-    # print("Ground Truth")
-    # print(f"C{components} -> S{scaling} -> ClustEval:  {adjusted_rand_score(kmeans_labels2, gt_labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:  {adjusted_mutual_info_score(kmeans_labels2, gt_labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:  {v_measure_score(kmeans_labels2, gt_labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:  {fowlkes_mallows_score(kmeans_labels2, gt_labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:  {davies_bouldin_score(features, kmeans_labels2):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:  {calinski_harabasz_score(features, kmeans_labels2):.3f}")
-    # print(f"C{components} -> S{scaling} -> ClustEval:  {silhouette_score(features, kmeans_labels2):.3f}")
-    # print(f"C{components} -> S{scaling} -> FE-Eval:    {davies_bouldin_score(features, gt_labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> FE-Eval:    {calinski_harabasz_score(features, gt_labels):.3f}")
-    # print(f"C{components} -> S{scaling} -> FE-Eval:    {silhouette_score(features, gt_labels):.3f}")
-    #
-    # print()
-    # print()
-
-    metrics = []
-    metrics.append(adjusted_rand_score(kmeans_labels1, gt_labels))
-    metrics.append(adjusted_mutual_info_score(kmeans_labels1, gt_labels))
-    metrics.append(v_measure_score(kmeans_labels1, gt_labels))
-    metrics.append(fowlkes_mallows_score(kmeans_labels1, gt_labels))
-    metrics.append(davies_bouldin_score(features, kmeans_labels1))
-    metrics.append(calinski_harabasz_score(features, kmeans_labels1))
-    metrics.append(silhouette_score(features, kmeans_labels1))
-    metrics.append(davies_bouldin_score(features, gt_labels))
-    metrics.append(calinski_harabasz_score(features, gt_labels))
-    metrics.append(silhouette_score(features, gt_labels))
-
-    return metrics
 
 def evaluate_method(method):
     metrics = []
@@ -335,7 +326,7 @@ def evaluate_method(method):
         scatter_plot.plot(f'{method} on Sim{simulation_number}', data, labels, marker='o')
         plt.savefig(f"./feature_extraction/autoencoder/analysis/" + f'{method}_{simulation_number}')
 
-        met = compute_metrics(None, None, data, labels)
+        met = compute_metrics(data, labels)
         metrics.append(met)
 
     metrics = np.array(metrics)
@@ -345,7 +336,6 @@ def evaluate_method(method):
 # evaluate_method('pca')
 # evaluate_method('ica')
 # evaluate_method('isomap')
-
 
 
 # main_spike_comparison()

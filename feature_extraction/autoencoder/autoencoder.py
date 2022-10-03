@@ -11,13 +11,14 @@ from feature_extraction.autoencoder.softplusplus_activation import softplusplus
 
 
 class AutoencoderModel(Model):
-
+    """
+    Autoencoder Model - automatic creation of the model
+    """
     def __init__(self, input_size, encoder_layer_sizes, decoder_layer_sizes, code_size, output_activation, loss_function, dropout=0.0):
         super(AutoencoderModel, self).__init__()
         self.input_size = input_size
         self.loss_function = loss_function
         activation = get_activation_function(output_activation)
-        # self.code_size = 2  # size of the desired compression 2D or 3D to be able to visualize
 
         self.input_spike = Input(shape=(self.input_size,))
 
@@ -30,9 +31,7 @@ class AutoencoderModel(Model):
             else:
                 current_layer = hidden_layer
 
-        # self.code_result = Dense(code_size, activation='tanh', activity_regularizer=l1(10e-7))(current_layer)
         self.code_result = Dense(code_size, activation=activation, activity_regularizer=l1(10e-7), name="code")(current_layer)
-
 
         decoder_layer_sizes = np.flip(decoder_layer_sizes)
 
@@ -54,6 +53,13 @@ class AutoencoderModel(Model):
 
 
     def pre_train(self, training_data, autoencoder_layer_sizes, epochs):
+        """
+        Greedy layer-wise pretraining [1]
+        [1] A. Sagheer and M. Kotb, ‘Unsupervised Pre-training of a Deep LSTM-based Stacked Autoencoder for Multivariate Time Series Forecasting Problems’, Sci Rep, vol. 9, no. 1, p. 19038, Dec. 2019, doi: 10.1038/s41598-019-55320-6.
+        :param training_data: matrix - the points of the dataset
+        :param autoencoder_layer_sizes: vector - the number of neurons per layer
+        :param epochs: integer - the number of epochs for pretraining
+        """
         encoder_layer_weights = []
         decoder_layer_weights = []
 
@@ -93,18 +99,19 @@ class AutoencoderModel(Model):
         return encoder_layer_weights
 
     def train(self, training_data, epochs=50, verbose="auto", learning_rate=0.001):
-        # autoencoder = Model(input_img, output_img)
-        # autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
-        # autoencoder.fit(training_data, training_data, epochs=20)
+        """
+        Autoencoder training for a number of epochs
+        :param training_data: matrix - the points of the dataset
+        :param epochs: integer - the number of epochs for pretraining
+        :param learning_rate: integer - the learning rate
+        """
 
-        # autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
-
-        muie = self.return_autoencoder()
+        model_var = self.return_autoencoder()
         lam = 100
         def contractive_loss(y_pred, y_true):
             mse = K.mean(K.square(y_true - y_pred), axis=1)
-            W = K.transpose(muie.get_layer('code').get_weights()[0])  # N_hidden x N
-            h = muie.get_layer('code').output
+            W = K.transpose(model_var.get_layer('code').get_weights()[0])  # N_hidden x N
+            h = model_var.get_layer('code').output
             dh = h * (1 - h)  # N_batch x N_hidden
 
             # N_batch x N_hidden * N_hidden x 1 = N_batch x 1
@@ -114,8 +121,8 @@ class AutoencoderModel(Model):
 
         def contractive_loss2(x, x_bar):
             mse = tf.reduce_mean(tf.keras.losses.mse(x, x_bar))
-            W = tf.transpose(muie.get_layer('code').get_weights()[0])
-            h = muie.get_layer('code').output
+            W = tf.transpose(model_var.get_layer('code').get_weights()[0])
+            h = model_var.get_layer('code').output
             dh = h * (1 - h)
             contractive = lam * tf.reduce_sum(tf.linalg.matmul(dh ** 2, tf.square(W)), axis=1)
             total_loss = mse + contractive
@@ -130,15 +137,6 @@ class AutoencoderModel(Model):
 
         self.autoencoder.compile(optimizer=opt, loss=loss)
         self.autoencoder.fit(training_data, training_data, epochs=epochs, verbose=verbose)
-
-
-        # plot_model(encoder, "./figures/autoencoder/model_encoder.png", show_shapes=True)
-        # plot_model(decoder, "./figures/autoencoder/model_decoder.png", show_shapes=True)
-        # plot_model(autoencoder, "./figures/autoencoder/model_autoencoder.png", show_shapes=True)
-
-    #     return self.encoder, self.decoder
-
-
 
 
     def return_encoder(self):
