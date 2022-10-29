@@ -1,11 +1,7 @@
 import os
-import statistics
-import time
-from scipy.fftpack import fft
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.signal import windows
-from sklearn import metrics
+
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA, FastICA
 from sklearn.manifold import Isomap
@@ -13,13 +9,10 @@ from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score, sil
     calinski_harabasz_score, davies_bouldin_score, silhouette_score, homogeneity_completeness_v_measure, \
     v_measure_score, fowlkes_mallows_score
 
-from run_utils import compute_metrics, compare_metrics
-from utils.constants import LABEL_COLOR_MAP
-from utils.dataset_parsing.simulations_dataset import get_dataset_simulation
-from utils.sbm import SBM, SBM_graph, SBM_graph_merge
-from utils.dataset_parsing import simulations_dataset as ds
-from utils import scatter_plot
-from utils.dataset_parsing import simulations_dataset_autoencoder as dsa
+from dataset_parsing import simulations_dataset as ds
+from metrics import compare_metrics, compute_metrics
+from visualization import scatter_plot
+
 
 def main(program):
     if program == "pca":
@@ -153,7 +146,7 @@ def main(program):
             pca_features = pca_2d.fit_transform(spikes)
 
             pn = 25
-            clustering_labels = SBM.best(pca_features, pn, ccThreshold=5, version=2)
+            clustering_labels = KMeans(n_clusters=len(np.unique(labels))+1).fit_predict(pca_features)
 
             hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_labels)
 
@@ -337,7 +330,3 @@ def evaluate_method(method):
 # evaluate_method('ica')
 # evaluate_method('isomap')
 
-
-# main_spike_comparison()
-# main_test_spike_comparison()
-# main_test_spike_comparison2()

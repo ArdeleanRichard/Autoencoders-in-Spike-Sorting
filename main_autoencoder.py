@@ -1,36 +1,23 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import sklearn
-import tensorflow as tf
-from sklearn import preprocessing
 from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA, FastICA
-from sklearn.manifold import Isomap
-from sklearn.metrics import fowlkes_mallows_score, adjusted_rand_score, adjusted_mutual_info_score, v_measure_score, \
-    silhouette_score, calinski_harabasz_score, davies_bouldin_score
-from sklearn.metrics.cluster import contingency_matrix
+from sklearn.decomposition import PCA
 from sklearn.utils import shuffle
 import os
 
-from feature_extraction.autoencoder import lstm_input, fft_input
-from feature_extraction.autoencoder.autoencoder_pca_principles.autoencoder_pca_model import AutoencoderPCAModel
-from feature_extraction.autoencoder.autoencoder_tied import AutoencoderTiedModel
-from feature_extraction.autoencoder.autoencoder_tied2 import AutoencoderTied2Model
-from feature_extraction.autoencoder.lstm_autoencoder import LSTMAutoencoderModel
-from feature_extraction.autoencoder.lstm_input import lstm_get_codes
-from parameters import MODEL_PATH, PLOT_PATH
-from run_utils import choose_scale, get_type
-from utils.dataset_parsing import simulations_dataset as ds
-from utils import scatter_plot
-from feature_extraction.autoencoder.model_auxiliaries import verify_output, get_codes, get_reconstructions, \
-    verify_output_one
-from feature_extraction.autoencoder.autoencoder import AutoencoderModel
-from feature_extraction.autoencoder.scaling import spike_scaling_min_max, spike_scaling_ignore_amplitude, get_spike_energy
+from neural_networks.autoencoder import lstm_input
+from neural_networks.autoencoder.autoencoder_pca_principles.autoencoder_pca_model import AutoencoderPCAModel
+from neural_networks.autoencoder.autoencoder_tied import AutoencoderTiedModel
+from neural_networks.autoencoder.autoencoder_tied2 import AutoencoderTied2Model
+from neural_networks.autoencoder.lstm_autoencoder import LSTMAutoencoderModel
+from ae_parameters import MODEL_PATH, PLOT_PATH
+from preprocess.data_fft import apply_fft_on_data, apply_fft_windowed_on_data, get_type
+from preprocess.data_scaling import choose_scale
+from dataset_parsing import simulations_dataset as ds
+from visualization import scatter_plot
+from neural_networks.autoencoder.model_auxiliaries import verify_output, get_codes
+from neural_networks.autoencoder.autoencoder import AutoencoderModel
 
-from utils.dataset_parsing.realdata_ssd_1electrode import parse_ssd_file
-from utils.dataset_parsing.realdata_parsing import read_timestamps, read_waveforms, read_event_timestamps, \
-    read_event_codes
-from utils.dataset_parsing.realdata_ssd import find_ssd_files, separate_by_unit, units_by_channel
 
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
@@ -218,7 +205,7 @@ def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index
         # verify_output(spikes, encoder, autoencoder, path=PLOT_PATH)
         autoencoder_features = lstm_input.lstm_get_codes(spikes_lstm, encoder, timesteps)
     if ae_type == "fft":
-        fft_real, fft_imag = fft_input.apply_fft_on_data(spikes, "original")
+        fft_real, fft_imag = apply_fft_on_data(spikes, "original")
 
         fft_real = np.array(fft_real)
         fft_imag = np.array(fft_imag)
@@ -244,7 +231,7 @@ def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index
         verify_output(spikes, encoder, autoencoder, path=PLOT_PATH)
         autoencoder_features = get_codes(spikes, encoder)
     if ae_type == "wfft":
-        fft_real, fft_imag = fft_input.apply_fft_windowed_on_data(spikes, "blackman")
+        fft_real, fft_imag = apply_fft_windowed_on_data(spikes, "blackman")
 
         fft_real = np.array(fft_real)
         fft_imag = np.array(fft_imag)
@@ -379,39 +366,6 @@ run_autoencoder(data_type="sim", simulation_number=SIM_NR,
 #     np.savetxt(f"./feature_extraction/autoencoder/analysis/{ae_type}_sim{SIM_NR}.csv", np.around(a=np.array(metrics).transpose(), decimals=3), delimiter=",")
 
 
-def compute_real_metrics(features, k):
-    try:
-        kmeans_labels1 = KMeans(n_clusters=k).fit_predict(features)
-        kmeans_labels1 = np.array(kmeans_labels1)
-
-        metrics = []
-        metrics.append(davies_bouldin_score(features, kmeans_labels1))
-        metrics.append(calinski_harabasz_score(features, kmeans_labels1))
-        metrics.append(silhouette_score(features, kmeans_labels1))
-    except ValueError:
-        metrics = [0,0,0]
-        kmeans_labels1 = np.zeros((len(features),))
-
-    return metrics, kmeans_labels1
-
-
-def get_M045_009():
-    DATASET_PATH = './datasets/M045_0009/'
-
-    spikes_per_unit, unit_electrode = parse_ssd_file(DATASET_PATH)
-    WAVEFORM_LENGTH = 58
-
-    timestamp_file, waveform_file, _, _ = find_ssd_files(DATASET_PATH)
-
-    timestamps = read_timestamps(timestamp_file)
-    timestamps_by_unit = separate_by_unit(spikes_per_unit, timestamps, 1)
-
-    waveforms = read_waveforms(waveform_file)
-    waveforms_by_unit = separate_by_unit(spikes_per_unit, waveforms, WAVEFORM_LENGTH)
-
-    units_in_channels, labels = units_by_channel(unit_electrode, waveforms_by_unit, data_length=WAVEFORM_LENGTH, number_of_channels=33)
-
-    return units_in_channels, labels
 
 
 
@@ -422,7 +376,7 @@ def get_M045_009():
 #         metrics = []
 #         for i in range(1, 10):
 #             print(i)
-#             units_in_channel, labels = get_M045_009()
+#             units_in_channel, labels = get_tins_data()
 #             spikes = units_in_channel[index-1]
 #             spikes = np.array(spikes)
 #

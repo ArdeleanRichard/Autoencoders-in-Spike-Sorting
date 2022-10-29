@@ -1,7 +1,8 @@
 import os
 import statistics
-import time
-
+import tensorflow as tf
+import matplotlib as mpl
+mpl.rc('figure', max_open_warning = 0)
 import sklearn
 from scipy.fftpack import fft
 import matplotlib.pyplot as plt
@@ -13,28 +14,29 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score, silhouette_samples, calinski_harabasz_score, davies_bouldin_score, silhouette_score, homogeneity_completeness_v_measure
 from sklearn.utils import shuffle
 
-from feature_extraction.autoencoder import lstm_input, fft_input
-from feature_extraction.autoencoder.autoencoder_pca_principles.autoencoder_pca_model import AutoencoderPCAModel
-from feature_extraction.autoencoder.benchmark import validate_model
-from feature_extraction.autoencoder.fft_input import fft_padded_spike
-from feature_extraction.autoencoder.lstm_autoencoder import LSTMAutoencoderModel
-from feature_extraction.autoencoder.lstm_input import lstm_get_codes
-from feature_extraction.autoencoder.scaling import spike_scaling_min_max, spike_scaling_ignore_amplitude, \
-    get_spike_energy
+from metrics import compute_metrics, compare_features, feature_scores
+import dataset_parsing.simulations_dataset_autoencoder
+from dataset_parsing.read_kampff import read_kampff_c28, read_kampff_c37
+from dataset_parsing import simulations_dataset as ds
+from dataset_parsing import simulations_dataset_autoencoder as dsa
+from preprocess.data_fft import fft_padded_spike, apply_fft_windowed_on_data, apply_blackman_window, \
+    apply_gaussian_window, get_type
+from preprocess.data_scaling import spike_scaling_min_max, choose_scale
+from neural_networks.autoencoder import lstm_input
+from neural_networks.autoencoder.autoencoder_pca_principles.autoencoder_pca_model import AutoencoderPCAModel
+from neural_networks.autoencoder.lstm_autoencoder import LSTMAutoencoderModel
+from neural_networks.autoencoder.lstm_input import lstm_get_codes
+from neural_networks.autoencoder.model_auxiliaries import verify_output, get_codes, verify_random_outputs, \
+    get_reconstructions
+from neural_networks.autoencoder.autoencoder import AutoencoderModel
 from main_autoencoder import run_autoencoder
-from parameters import MODEL_PATH, PLOT_PATH, output_activation, loss_function
-from run_utils import choose_scale, compute_metrics
-from utils.sbm import SBM, SBM_graph_merge, SBM_graph
-from utils.dataset_parsing import simulations_dataset as ds
-from utils.dataset_parsing import simulations_dataset_autoencoder as dsa
-from utils import scatter_plot
-from utils.constants import autoencoder_layer_sizes, autoencoder_code_size, lstm_layer_sizes, lstm_code_size, autoencoder_cascade_layer_sizes, LABEL_COLOR_MAP, autoencoder_expanded_layer_sizes, \
+from ae_parameters import MODEL_PATH, PLOT_PATH, output_activation, loss_function
+from visualization import scatter_plot
+from ae_parameters import autoencoder_layer_sizes, autoencoder_code_size, lstm_layer_sizes, lstm_code_size, autoencoder_cascade_layer_sizes, \
+    autoencoder_expanded_layer_sizes, \
     autoencoder_expanded_code_size, autoencoder_selected_layer_sizes, autoencoder_single_sim_layer_sizes, autoencoder_single_sim_code_size, lstm_single_sim_code_size, lstm_single_sim_layer_sizes
-from feature_extraction.autoencoder.model_auxiliaries import verify_output, get_codes, verify_random_outputs
-from feature_extraction.autoencoder.autoencoder import AutoencoderModel
 from sklearn.tree import DecisionTreeClassifier
-import matplotlib as mpl
-mpl.rc('figure', max_open_warning = 0)
+from common.distance import euclidean_point_distance
 
 
 
@@ -45,12 +47,10 @@ def main(program, sub=""):
         spikes, labels = ds.get_dataset_simulation(simNr=simulation_number)
         print(spikes.shape)
 
-        autoencoder_layer_sizes = [70,60,50,40,30,20,10,5]
         code_size = 2
         output_activation = 'tanh'
         # output_activation = softplusplus
         # loss_function = 'mse'
-        import tensorflow as tf
         # loss_function = tf.keras.losses.CategoricalCrossentropy()
         # loss_function = tf.keras.losses.SparseCategoricalCrossentropy()
         loss_function = tf.keras.losses.BinaryCrossentropy()
@@ -66,7 +66,7 @@ def main(program, sub=""):
         # autoencoder.load_weights('./feature_extraction/autoencoder/weights/autoencoder_cs{code_size}_oa-tanh_sim4_e100')
         encoder, decoder = autoencoder.return_encoder()
 
-        verify_output(spikes, encoder, decoder, path='./feature_extraction/autoencoder/testfigs/')
+        verify_output(spikes, encoder, decoder, path='figures/testfigs/')
         autoencoder_features = get_codes(spikes, encoder)
 
         print(autoencoder_features.shape)
@@ -75,9 +75,9 @@ def main(program, sub=""):
         plt.savefig(f'./feature_extraction/autoencoder/testfigs/gt_model_cs{code_size}_oa-tanh_ls-bcs_sim{simulation_number}')
 
         # pn = 25
-        # labels = SBM.best(autoencoder_features, pn, ccThreshold=5, version=2)
-        # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels, marker='o')
-        # plt.savefig(f'./feature_extraction/autoencoder/testfigs/gt_model_cs{code_size}_oa-tanh_ls-bcs_sim{simulation_number}_sbm')
+        # labels = kmeans.best(autoencoder_features, pn, ccThreshold=5, version=2)
+        # scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels, marker='o')
+        # plt.savefig(f'./feature_extraction/autoencoder/testfigs/gt_model_cs{code_size}_oa-tanh_ls-bcs_sim{simulation_number}_kmeans')
 
     elif program == "autoencoder_single_sim":
         range_min = 1
@@ -123,62 +123,8 @@ def main(program, sub=""):
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca')
 
 
-            pn = 25
             try:
-                clustering_ae_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
-                clustering_pca_labels = SBM.parallel(pca_features, pn, ccThreshold=5, version=2)
-
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_ae_labels,
-                                       marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_ae_sbm')
-
-                scatter_plot.plot_grid('SBM' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
-                                       marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_sbm')
-
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_ae_labels)
-
-                scores_ae = [adjusted_rand_score(labels, clustering_ae_labels),
-                          adjusted_mutual_info_score(labels, clustering_ae_labels),
-                          hom,
-                          com,
-                          vm,
-                          calinski_harabasz_score(autoencoder_features, labels),
-                          davies_bouldin_score(autoencoder_features, labels),
-                          silhouette_score(autoencoder_features, labels)
-                          ]
-
-                print(f"{simulation_number}, {len(unique_labels)}, "
-                      f"{scores_ae[0]:.2f}, {scores_ae[1]:.2f}, "
-                      f"{scores_ae[2]:.2f}, {scores_ae[3]:.2f}, "
-                      f"{scores_ae[4]:.2f}, {scores_ae[5]:.2f}, "
-                      f"{scores_ae[6]:.2f}, {scores_ae[7]:.2f}")
-
-
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_pca_labels)
-
-                scores_pca = [adjusted_rand_score(labels, clustering_pca_labels),
-                          adjusted_mutual_info_score(labels, clustering_pca_labels),
-                          hom,
-                          com,
-                          vm,
-                          calinski_harabasz_score(pca_features, labels),
-                          davies_bouldin_score(pca_features, labels),
-                          silhouette_score(pca_features, labels)
-                          ]
-
-                print(f"{simulation_number}, {len(unique_labels)}, "
-                      f"{scores_pca[0]:.2f}, {scores_pca[1]:.2f}, "
-                      f"{scores_pca[2]:.2f}, {scores_pca[3]:.2f}, "
-                      f"{scores_pca[4]:.2f}, {scores_pca[5]:.2f}, "
-                      f"{scores_pca[6]:.2f}, {scores_pca[7]:.2f}")
-
-
-                print(f"{simulation_number}, {len(unique_labels)}, "
-                      f"{scores_ae[0] - scores_pca[0]:.2f}, {scores_ae[1] - scores_pca[1]:.2f}, "
-                      f"{scores_ae[2] - scores_pca[2]:.2f}, {scores_ae[3] - scores_pca[3]:.2f}, "
-                      f"{scores_ae[4] - scores_pca[4]:.2f}, {scores_ae[5] - scores_pca[5]:.2f}, "
-                      f"{scores_ae[6] - scores_pca[6]:.2f}, {scores_ae[7] - scores_pca[7]:.2f}")
+                compare_features(autoencoder_features, pca_features, plot_path, simulation_number, labels)
 
             except KeyError:
                 pass
@@ -228,60 +174,7 @@ def main(program, sub=""):
 
             pn = 25
             try:
-                clustering_ae_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
-                clustering_pca_labels = SBM.parallel(pca_features, pn, ccThreshold=5, version=2)
-
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_ae_labels,
-                                       marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_sbm')
-
-                scatter_plot.plot_grid('SBM' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
-                                       marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_sbm')
-
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_ae_labels)
-
-                scores_ae = [adjusted_rand_score(labels, clustering_ae_labels),
-                          adjusted_mutual_info_score(labels, clustering_ae_labels),
-                          hom,
-                          com,
-                          vm,
-                          calinski_harabasz_score(autoencoder_features, labels),
-                          davies_bouldin_score(autoencoder_features, labels),
-                          silhouette_score(autoencoder_features, labels)
-                          ]
-
-                print(f"{simulation_number}, {len(unique_labels)}, "
-                      f"{scores_ae[0]:.2f}, {scores_ae[1]:.2f}, "
-                      f"{scores_ae[2]:.2f}, {scores_ae[3]:.2f}, "
-                      f"{scores_ae[4]:.2f}, {scores_ae[5]:.2f}, "
-                      f"{scores_ae[6]:.2f}, {scores_ae[7]:.2f}")
-
-
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_pca_labels)
-
-                scores_pca = [adjusted_rand_score(labels, clustering_pca_labels),
-                          adjusted_mutual_info_score(labels, clustering_pca_labels),
-                          hom,
-                          com,
-                          vm,
-                          calinski_harabasz_score(pca_features, labels),
-                          davies_bouldin_score(pca_features, labels),
-                          silhouette_score(pca_features, labels)
-                          ]
-
-                print(f"{simulation_number}, {len(unique_labels)}, "
-                      f"{scores_pca[0]:.2f}, {scores_pca[1]:.2f}, "
-                      f"{scores_pca[2]:.2f}, {scores_pca[3]:.2f}, "
-                      f"{scores_pca[4]:.2f}, {scores_pca[5]:.2f}, "
-                      f"{scores_pca[6]:.2f}, {scores_pca[7]:.2f}")
-
-
-                print(f"{simulation_number}, {len(unique_labels)}, "
-                      f"{scores_ae[0] - scores_pca[0]:.2f}, {scores_ae[1] - scores_pca[1]:.2f}, "
-                      f"{scores_ae[2] - scores_pca[2]:.2f}, {scores_ae[3] - scores_pca[3]:.2f}, "
-                      f"{scores_ae[4] - scores_pca[4]:.2f}, {scores_ae[5] - scores_pca[5]:.2f}, "
-                      f"{scores_ae[6] - scores_pca[6]:.2f}, {scores_ae[7] - scores_pca[7]:.2f}")
+                compare_features(autoencoder_features, pca_features, plot_path, simulation_number, labels)
 
             except KeyError:
                 pass
@@ -291,7 +184,6 @@ def main(program, sub=""):
 
         spikes, labels = dsa.stack_simulations_array(simulation_array)
 
-        from utils.constants import autoencoder_layer_sizes
         autoencoder = AutoencoderModel(input_size=len(spikes[0]),
                                        encoder_layer_sizes=autoencoder_layer_sizes,
                                        decoder_layer_sizes=autoencoder_layer_sizes,
@@ -318,11 +210,11 @@ def main(program, sub=""):
                 plt.savefig(f'./figures/autoencoder/gt_model_sim{simulation_number}')
 
                 # pn = 25
-                # labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                # labels = kmeans.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
                 #
-                # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                # scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                 #                        marker='o')
-                # plt.savefig(f'./figures/autoencoder/gt_model_sim{simulation_number}_sbm')
+                # plt.savefig(f'./figures/autoencoder/gt_model_sim{simulation_number}_kmeans')
         else:
             pass
 
@@ -340,10 +232,10 @@ def main(program, sub=""):
         ]
 
         spikes, labels = dsa.stack_simulations_range(range_min, range_max, True, False)
-        for autoencoder_layer_sizes in autoencoder_layers:
-            plot_path = f"./figures/autoencoder_c{autoencoder_layer_sizes[-1]}_noise"
-            verif_path = f"./figures/autoencoder_c{autoencoder_layer_sizes[-1]}_noise/spike_verif"
-            weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_noise_c{autoencoder_layer_sizes[-1]}'
+        for autoencoder_layer_options in autoencoder_layers:
+            plot_path = f"./figures/autoencoder_c{autoencoder_layer_options[-1]}_noise"
+            verif_path = f"./figures/autoencoder_c{autoencoder_layer_options[-1]}_noise/spike_verif"
+            weights_path = f'weights/autoencoder_allsim_e100_d80_noise_c{autoencoder_layer_options[-1]}'
 
             if not os.path.exists(plot_path):
                 os.makedirs(plot_path)
@@ -351,9 +243,9 @@ def main(program, sub=""):
                 os.makedirs(verif_path)
 
             autoencoder = AutoencoderModel(input_size=len(spikes[0]),
-                                           encoder_layer_sizes=autoencoder_layer_sizes[:-1],
-                                           decoder_layer_sizes=autoencoder_layer_sizes[:-1],
-                                           code_size=autoencoder_layer_sizes[-1])
+                                           encoder_layer_sizes=autoencoder_layer_options[:-1],
+                                           decoder_layer_sizes=autoencoder_layer_options[:-1],
+                                           code_size=autoencoder_layer_options[-1])
 
             encoder, autoenc = autoencoder.return_encoder()
 
@@ -383,11 +275,11 @@ def main(program, sub=""):
                     plt.savefig(f'{plot_path}/gt_model_sim{simulation_number}')
 
                     # pn = 25
-                    # labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                    # labels = kmeans.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
                     #
-                    # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                    # scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                     #                        marker='o')
-                    # plt.savefig(f'{plot_path}/gt_model_sim{simulation_number}_sbm')
+                    # plt.savefig(f'{plot_path}/gt_model_sim{simulation_number}_kmeans')
             elif sub == "pre":
                 autoencoder_layer_sizes.append(autoencoder_code_size)
                 layer_weights = autoencoder.pre_train(spikes, autoencoder_layer_sizes, epochs=100)
@@ -417,11 +309,11 @@ def main(program, sub=""):
                     plt.savefig(f'./figures/autoencoder_c{autoencoder_code_size}_pt/gt_model_sim{simulation_number}')
 
                     pn = 25
-                    labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                    labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
-                    scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                    scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                            marker='o')
-                    plt.savefig(f'./figures/autoencoder_c{autoencoder_code_size}_pt/gt_model_sim{simulation_number}_sbm')
+                    plt.savefig(f'./figures/autoencoder_c{autoencoder_code_size}_pt/gt_model_sim{simulation_number}_kmeans')
 
             else:
                 pass
@@ -441,7 +333,7 @@ def main(program, sub=""):
 
         spike_verif_path = f'./figures/autoencoder_selected2/spike_verif/'
         plot_path = f'./figures/autoencoder_selected2/'
-        weights_path = f'feature_extraction/autoencoder/weights/autoencoder_selected2_allsim_e10'
+        weights_path = f'weights/autoencoder_selected2_allsim_e10'
         if not os.path.exists(spike_verif_path):
             os.makedirs(spike_verif_path)
         if not os.path.exists(plot_path):
@@ -482,11 +374,11 @@ def main(program, sub=""):
 
                 # pn = 25
                 # try:
-                #     labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                #     labels = kmeans.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
                 #
-                #     scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                #     scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                 #                            marker='o')
-                #     plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+                #     plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
                 # except KeyError:
                 #     pass
 
@@ -532,19 +424,9 @@ def main(program, sub=""):
             pca_features = pca_2d.fit_transform(spikes)
 
             pn = 25
-            clustering_labels = SBM.parallel(pca_features, pn, ccThreshold=5, version=2)
+            clustering_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(pca_features)
 
-            hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_labels)
-
-            scores = [adjusted_rand_score(labels, clustering_labels),
-                      adjusted_mutual_info_score(labels, clustering_labels),
-                      hom,
-                      com,
-                      vm,
-                      calinski_harabasz_score(pca_features, labels),
-                      davies_bouldin_score(pca_features, labels),
-                      silhouette_score(pca_features, labels)
-                      ]
+            scores = feature_scores(labels, clustering_labels)
 
             results.append(scores)
 
@@ -617,7 +499,7 @@ def main(program, sub=""):
         # plot_path = f'./figures/lstm_verif_c{lstm_code_size}_TS{timesteps}_OL{overlap}/'
         plot_path = f'./figures/lstm_verif_c{lstm_code_size}_TS{timesteps}_OL{overlap}_nonoise/'
         # weights_path = f'./autoencoder/weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}'
-        weights_path = f'feature_extraction/autoencoder/weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}_nonoise_norm{normalize}_scale_{scale}'
+        weights_path = f'weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}_nonoise_norm{normalize}_scale_{scale}'
 
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -667,63 +549,9 @@ def main(program, sub=""):
 
             pn = 25
             try:
-                clustering_lstm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
-                clustering_pca_labels = SBM.parallel(pca_features, pn, ccThreshold=5, version=2)
-
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
-                                       marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_sbm')
-
-                scatter_plot.plot_grid('SBM' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
-                                       marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_sbm')
-
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_lstm_labels)
-
-                scores_lstm = [adjusted_rand_score(labels, clustering_lstm_labels),
-                          adjusted_mutual_info_score(labels, clustering_lstm_labels),
-                          hom,
-                          com,
-                          vm,
-                          calinski_harabasz_score(autoencoder_features, labels),
-                          davies_bouldin_score(autoencoder_features, labels),
-                          silhouette_score(autoencoder_features, labels)
-                          ]
-
+                scores_lstm, scores_pca = compare_features(autoencoder_features, pca_features, plot_path, simulation_number, labels)
                 results_lstm.append(scores_lstm)
-
-                print(f"{sim_list_index}, {scores_lstm[0]:.2f}, {scores_lstm[1]:.2f}, "
-                      f"{scores_lstm[2]:.2f}, {scores_lstm[3]:.2f}, "
-                      f"{scores_lstm[4]:.2f}, {scores_lstm[5]:.2f}, "
-                      f"{scores_lstm[6]:.2f}, {scores_lstm[7]:.2f}")
-
-
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_pca_labels)
-
-                scores_pca = [adjusted_rand_score(labels, clustering_pca_labels),
-                          adjusted_mutual_info_score(labels, clustering_pca_labels),
-                          hom,
-                          com,
-                          vm,
-                          calinski_harabasz_score(pca_features, labels),
-                          davies_bouldin_score(pca_features, labels),
-                          silhouette_score(pca_features, labels)
-                          ]
-
-                print(f"{sim_list_index}, {scores_pca[0]:.2f}, {scores_pca[1]:.2f}, "
-                      f"{scores_pca[2]:.2f}, {scores_pca[3]:.2f}, "
-                      f"{scores_pca[4]:.2f}, {scores_pca[5]:.2f}, "
-                      f"{scores_pca[6]:.2f}, {scores_pca[7]:.2f}")
-
-
-                print(f"{sim_list_index}, {scores_lstm[0] - scores_pca[0]:.2f}, {scores_lstm[1] - scores_pca[1]:.2f}, "
-                      f"{scores_lstm[2] - scores_pca[2]:.2f}, {scores_lstm[3] - scores_pca[3]:.2f}, "
-                      f"{scores_lstm[4] - scores_pca[4]:.2f}, {scores_lstm[5] - scores_pca[5]:.2f}, "
-                      f"{scores_lstm[6] - scores_pca[6]:.2f}, {scores_lstm[7] - scores_pca[7]:.2f}")
-
                 results_pca.append(scores_pca)
-
-
 
             except KeyError:
                 pass
@@ -769,7 +597,7 @@ def main(program, sub=""):
         # plot_path = f'./figures/lstm_verif_c{lstm_code_size}_TS{timesteps}_OL{overlap}/'
         plot_path = f'./figures/lstm_verif_c{lstm_code_size}_TS{timesteps}_OL{overlap}_nonoise/'
         # weights_path = f'./autoencoder/weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}'
-        weights_path = f'feature_extraction/autoencoder/weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}_nonoise_norm{normalize}_scale_{scale}'
+        weights_path = f'weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}_nonoise_norm{normalize}_scale_{scale}'
 
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -819,42 +647,23 @@ def main(program, sub=""):
 
                 pn = 25
                 try:
-                    clustering_lstm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
-                    clustering_pca_labels = SBM.parallel(pca_features, pn, ccThreshold=5, version=2)
+                    clustering_lstm_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
+                    clustering_pca_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(pca_features)
 
-                    # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
+                    # scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
                     #                        marker='o')
-                    # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_sbm')
+                    # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_kmeans')
                     #
-                    # scatter_plot.plot_grid('SBM' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
+                    # scatter_plot.plot_grid('kmeans' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
                     #                        marker='o')
-                    # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_sbm')
+                    # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_kmeans')
 
-                    hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_lstm_labels)
 
-                    scores_lstm = [adjusted_rand_score(labels, clustering_lstm_labels),
-                                   adjusted_mutual_info_score(labels, clustering_lstm_labels),
-                                   hom,
-                                   com,
-                                   vm,
-                                   calinski_harabasz_score(autoencoder_features, labels),
-                                   davies_bouldin_score(autoencoder_features, labels),
-                                   silhouette_score(autoencoder_features, labels)
-                                   ]
+                    scores_lstm = feature_scores(labels, clustering_lstm_labels)
 
                     simulation_lstm.append(scores_lstm)
 
-                    hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_pca_labels)
-
-                    scores_pca = [adjusted_rand_score(labels, clustering_pca_labels),
-                                  adjusted_mutual_info_score(labels, clustering_pca_labels),
-                                  hom,
-                                  com,
-                                  vm,
-                                  calinski_harabasz_score(pca_features, labels),
-                                  davies_bouldin_score(pca_features, labels),
-                                  silhouette_score(pca_features, labels)
-                                  ]
+                    scores_pca = feature_scores(labels, clustering_pca_labels)
 
                     simulation_pca.append(scores_pca)
 
@@ -925,7 +734,7 @@ def main(program, sub=""):
         scale = False
 
         plot_path = f'./figures/lstm_verif_c{lstm_code_size}_TS{timesteps}_OL{overlap}/'
-        weights_path = f'feature_extraction/autoencoder/weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}'
+        weights_path = f'weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}'
 
         if not os.path.exists(plot_path):
             os.makedirs(plot_path)
@@ -974,55 +783,10 @@ def main(program, sub=""):
 
                 pn = 25
                 try:
-                    clustering_lstm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
-                    clustering_pca_labels = SBM.parallel(pca_features, pn, ccThreshold=5, version=2)
 
-                    # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
-                    #                        marker='o')
-                    # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_sbm')
-                    #
-                    # scatter_plot.plot_grid('SBM' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
-                    #                        marker='o')
-                    # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_sbm')
-
-                    hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_lstm_labels)
-
-                    scores = [adjusted_rand_score(labels, clustering_lstm_labels),
-                              adjusted_mutual_info_score(labels, clustering_lstm_labels),
-                              hom,
-                              com,
-                              vm,
-                              calinski_harabasz_score(autoencoder_features, labels),
-                              davies_bouldin_score(autoencoder_features, labels),
-                              silhouette_score(autoencoder_features, labels)
-                              ]
-
-                    results_lstm.append(scores)
-
-                    print(f"{scores[0]:.2f}, {scores[1]:.2f}, "
-                          f"{scores[2]:.2f}, {scores[3]:.2f}, "
-                          f"{scores[4]:.2f}, {scores[5]:.2f}, "
-                          f"{scores[6]:.2f}, {scores[7]:.2f}")
-
-
-                    hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_pca_labels)
-
-                    scores = [adjusted_rand_score(labels, clustering_pca_labels),
-                              adjusted_mutual_info_score(labels, clustering_pca_labels),
-                              hom,
-                              com,
-                              vm,
-                              calinski_harabasz_score(pca_features, labels),
-                              davies_bouldin_score(pca_features, labels),
-                              silhouette_score(pca_features, labels)
-                              ]
-
-                    print(f"{scores[0]:.2f}, {scores[1]:.2f}, "
-                          f"{scores[2]:.2f}, {scores[3]:.2f}, "
-                          f"{scores[4]:.2f}, {scores[5]:.2f}, "
-                          f"{scores[6]:.2f}, {scores[7]:.2f}")
-
-                    results_pca.append(scores)
+                    scores_lstm, scores_pca = compare_features(autoencoder_features, pca_features, plot_path, simulation_number, labels)
+                    results_lstm.append(scores_lstm)
+                    results_pca.append(scores_pca)
 
                     sim_list_index += 1
 
@@ -1110,7 +874,7 @@ def main(program, sub=""):
 
         spike_verif_path = f'./figures/lstm_c{lstm_code_size}_nn{nonoise}_align{align}/spike_verif/'
         plot_path = f'./figures/lstm_c{lstm_code_size}_nn{nonoise}_align{align}/'
-        weights_path = f'feature_extraction/autoencoder/weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_nn{nonoise}_align{align}'
+        weights_path = f'weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_nn{nonoise}_align{align}'
         if not os.path.exists(spike_verif_path):
             os.makedirs(spike_verif_path)
         if not os.path.exists(plot_path):
@@ -1158,11 +922,11 @@ def main(program, sub=""):
                 plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
                 pn = 25
-                labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                labels =KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                        marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
         elif sub == "validation":
             autoencoder.load_weights(weights_path)
 
@@ -1182,19 +946,9 @@ def main(program, sub=""):
                 pca_2d = PCA(n_components=2)
                 autoencoder_features = pca_2d.fit_transform(autoencoder_features)
 
-                clustering_ae_labels = SBM.parallel(autoencoder_features, 25, ccThreshold=5, version=2)
+                clustering_ae_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_ae_labels)
-
-                scores_ae = [adjusted_rand_score(labels, clustering_ae_labels),
-                             adjusted_mutual_info_score(labels, clustering_ae_labels),
-                             hom,
-                             com,
-                             vm,
-                             calinski_harabasz_score(autoencoder_features, labels),
-                             davies_bouldin_score(autoencoder_features, labels),
-                             silhouette_score(autoencoder_features, labels)
-                             ]
+                scores_ae = feature_scores(labels, clustering_ae_labels)
 
                 print(f"{simulation_number}, {len(unique_labels)}, "
                       f"{scores_ae[0]:.2f}, {scores_ae[1]:.2f}, "
@@ -1215,7 +969,7 @@ def main(program, sub=""):
 
         spike_verif_path = f'./figures/lstm_c{lstm_code_size}_TS{timesteps}_OL{overlap}_norm{normalize}_scale_{scale}_nonoise/spike_verif/'
         plot_path = f'./figures/lstm_c{lstm_code_size}_TS{timesteps}_OL{overlap}_norm{normalize}_scale_{scale}_nonoise/'
-        weights_path = f'feature_extraction/autoencoder/weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}_nonoise_norm{normalize}_scale_{scale}'
+        weights_path = f'weights/lstm_allsim_e100_d80_nonoise_c{lstm_code_size}_TS{timesteps}_OL{overlap}_nonoise_norm{normalize}_scale_{scale}'
         if not os.path.exists(spike_verif_path):
             os.makedirs(spike_verif_path)
         if not os.path.exists(plot_path):
@@ -1259,11 +1013,11 @@ def main(program, sub=""):
 
                 pn = 25
                 try:
-                    labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                    labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
-                    scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                    scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                            marker='o')
-                    plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+                    plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
                 except KeyError:
                     pass
 
@@ -1288,6 +1042,47 @@ def main(program, sub=""):
             plt.savefig(plot_path + f'check_sim{simulation_number}')
 
 
+def validate_model(autoencoder_layers, autoencoder_code_size, pt=False, noise=False):
+    range_min = 1
+    range_max = 96
+
+    autoencoder = AutoencoderModel(input_size=79,
+                                   encoder_layer_sizes=autoencoder_layers,
+                                   decoder_layer_sizes=autoencoder_layers,
+                                   code_size=autoencoder_code_size)
+
+    encoder, autoenc = autoencoder.return_encoder()
+
+    if pt == True:
+        autoencoder.load_weights(f'./autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_pt')
+    elif noise == True:
+        autoencoder.load_weights(f'./autoencoder/weights/autoencoder_allsim_e100_d80_noise_c{autoencoder_code_size}')
+    else:
+        autoencoder.load_weights(f'./autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}')
+
+    results = []
+    for simulation_number in range(range_min, range_max):
+        if simulation_number == 25 or simulation_number == 44:
+            continue
+        spikes, labels = ds.get_dataset_simulation(simNr=simulation_number)
+
+        if noise == False:
+            spikes = spikes[labels != 0]
+            labels = labels[labels != 0]
+
+        autoencoder_features = get_codes(spikes, encoder)
+
+        pca_2d = PCA(n_components=2)
+        autoencoder_features = pca_2d.fit_transform(autoencoder_features)
+
+        kmeans = KMeans(n_clusters=len(np.unique(labels)) + 1, random_state=0).fit(autoencoder_features)
+        clustering_labels = kmeans.labels_
+
+        scores = feature_scores(labels, clustering_labels)
+        results.append(scores)
+
+    return results
+
 def main_ensemble_stacked():
     range_min = 1
     range_max = 96
@@ -1305,8 +1100,8 @@ def main_ensemble_stacked():
     spikes_list, labels_list = dsa.split_stack_simulations(range_min, range_max, no_noise=False, alignment=align, normalize=normalize, scale=scale)
 
     for i in range(0, len(spikes_list), 2):
-        fft_real_blackman, fft_imag_blackman = fft_input.apply_fft_windowed_on_data(spikes_list[i], "blackman")
-        fft_real_gaussian, fft_imag_gaussian = fft_input.apply_fft_windowed_on_data(spikes_list[i + 1], "gaussian")
+        fft_real_blackman, fft_imag_blackman = apply_fft_windowed_on_data(spikes_list[i], "blackman")
+        fft_real_gaussian, fft_imag_gaussian = apply_fft_windowed_on_data(spikes_list[i + 1], "gaussian")
 
         spikes_blackman = get_type(on_type, fft_real_blackman, fft_imag_blackman)
         spikes_list[i] = np.array(spikes_blackman)
@@ -1365,12 +1160,12 @@ def main_ensemble_stacked():
         if simulation_number == 25 or simulation_number == 44 or simulation_number == 78:
             continue
 
-        fft_real_blackman, fft_imag_blackman, labels_blackman = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                                                    alignment=align,
-                                                                                                    window_type="blackman")
-        fft_real_gaussian, fft_imag_gaussian, labels_gaussian = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                                                    alignment=align,
-                                                                                                    window_type="gaussian")
+        fft_real_blackman, fft_imag_blackman, labels_blackman = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                                          alignment=align,
+                                                                                                                                          window_type="blackman")
+        fft_real_gaussian, fft_imag_gaussian, labels_gaussian = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                                          alignment=align,
+                                                                                                                                          window_type="gaussian")
 
         fft_real_blackman = np.array(fft_real_blackman)
         fft_imag_blackman = np.array(fft_imag_blackman)
@@ -1399,14 +1194,14 @@ def main_ensemble_stacked():
         scatter_plot.plot('GT' + str(len(autoencoder_features_gaussian)), autoencoder_features_gaussian, labels_gaussian, marker='o')
         plt.savefig(plot_path + f'gt_sim{simulation_number}_blackman')
 
-        clustering_labels = SBM.best(autoencoder_features_blackman, 25, ccThreshold=5, version=2)
+        clustering_labels = KMeans(n_clusters=len(np.unique(labels_blackman))).fit_predict(autoencoder_features_blackman)
         sil_coeffs1 = silhouette_samples(autoencoder_features_blackman, labels_blackman, metric='mahalanobis')
 
         results_ensemble_blackman.append([adjusted_rand_score(labels_blackman, clustering_labels),
                                  adjusted_mutual_info_score(labels_blackman, clustering_labels),
                                  np.average(sil_coeffs1)])
 
-        clustering_labels = SBM.best(autoencoder_features_gaussian, 25, ccThreshold=5, version=2)
+        clustering_labels = KMeans(n_clusters=len(np.unique(labels_gaussian))).fit_predict(autoencoder_features_gaussian)
         sil_coeffs2 = silhouette_samples(autoencoder_features_gaussian, labels_gaussian, metric='mahalanobis')
 
 
@@ -1536,14 +1331,14 @@ def main_fft(program, case, alignment, on_type):
     epochs = 100
     spike_verif_path = f'./figures/fft/c{autoencoder_code_size}/{on_type}/{"wA" if alignment else "woA"}/{case}/spike_verif'
     plot_path = f'./figures/fft/c{autoencoder_code_size}/{on_type}/{"wA" if alignment else "woA"}/{case}/'
-    weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft-{on_type}-{case}_{"wA" if alignment else "woA"}'
+    weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft-{on_type}-{case}_{"wA" if alignment else "woA"}'
 
     if not os.path.exists(spike_verif_path):
         os.makedirs(spike_verif_path)
     if not os.path.exists(plot_path):
         os.makedirs(plot_path)
 
-    fft_real, fft_imag = fft_input.apply_fft_on_range(case, alignment, range_min, 2)
+    fft_real, fft_imag = dataset_parsing.simulations_dataset_autoencoder.apply_fft_on_range(case, alignment, range_min, 2)
 
     fft_real = np.array(fft_real)
     fft_imag = np.array(fft_imag)
@@ -1573,8 +1368,8 @@ def main_fft(program, case, alignment, on_type):
             if simulation_number == 25 or simulation_number == 44:
                 continue
 
-            fft_real, fft_imag, labels = fft_input.apply_fft_on_sim(sim_nr=simulation_number, case=case,
-                                                                    alignment=alignment)
+            fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_on_sim(sim_nr=simulation_number, case=case,
+                                                                                                          alignment=alignment)
             fft_real = np.array(fft_real)
             fft_imag = np.array(fft_imag)
 
@@ -1592,11 +1387,11 @@ def main_fft(program, case, alignment, on_type):
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
             pn = 25
-            labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+            labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
-            scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+            scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                    marker='o')
-            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
     if program == "validation":
 
         results_fft = []
@@ -1604,8 +1399,8 @@ def main_fft(program, case, alignment, on_type):
             if simulation_number == 25 or simulation_number == 44:
                 continue
 
-            fft_real, fft_imag, labels = fft_input.apply_fft_on_sim(sim_nr=simulation_number, case=case,
-                                                                    alignment=alignment)
+            fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_on_sim(sim_nr=simulation_number, case=case,
+                                                                                                          alignment=alignment)
             fft_real = np.array(fft_real)
             fft_imag = np.array(fft_imag)
 
@@ -1629,27 +1424,17 @@ def main_fft(program, case, alignment, on_type):
 
             pn = 25
             try:
-                clustering_lstm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                clustering_lstm_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
-                # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
+                # scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
                 #                        marker='o')
-                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_sbm')
+                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_kmeans')
                 #
-                # scatter_plot.plot_grid('SBM' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
+                # scatter_plot.plot_grid('kmeans' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
                 #                        marker='o')
-                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_sbm')
+                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_kmeans')
 
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_lstm_labels)
-
-                scores_lstm = [adjusted_rand_score(labels, clustering_lstm_labels),
-                          adjusted_mutual_info_score(labels, clustering_lstm_labels),
-                          hom,
-                          com,
-                          vm,
-                          calinski_harabasz_score(autoencoder_features, labels),
-                          davies_bouldin_score(autoencoder_features, labels),
-                          silhouette_score(autoencoder_features, labels)
-                          ]
+                scores_lstm = feature_scores(labels, clustering_lstm_labels)
 
                 results_fft.append(scores_lstm)
 
@@ -1676,15 +1461,15 @@ def main_ensemble_algebraic(program, algebraic_combination):
     epochs = 100
     alignment = 2 # align to Na+ peak
     on_type = "magnitude"
-    gaussian_weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_windowed--gaussian-{on_type}_align{alignment}'
-    blackman_weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_windowed--blackman-{on_type}_align{alignment}'
+    gaussian_weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_windowed--gaussian-{on_type}_align{alignment}'
+    blackman_weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_windowed--blackman-{on_type}_align{alignment}'
     plot_path = f'./figures/fft_windowed_ensemble_{algebraic_combination}/'
 
     if not os.path.exists(plot_path):
         os.makedirs(plot_path)
 
-    fft_real_blackman, fft_imag_blackman, labels = fft_input.apply_fft_windowed_on_range(alignment, range_min, range_max, "blackman")
-    fft_real_gaussian, fft_imag_gaussian, labels = fft_input.apply_fft_windowed_on_range(alignment, range_min, range_max, "gaussian")
+    fft_real_blackman, fft_imag_blackman, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_range(alignment, range_min, range_max, "blackman")
+    fft_real_gaussian, fft_imag_gaussian, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_range(alignment, range_min, range_max, "gaussian")
 
     fft_real_blackman = np.array(fft_real_blackman)
     fft_imag_blackman = np.array(fft_imag_blackman)
@@ -1729,12 +1514,12 @@ def main_ensemble_algebraic(program, algebraic_combination):
             if simulation_number == 25 or simulation_number == 44 or simulation_number== 78:
                 continue
 
-            fft_real_blackman, fft_imag_blackman, labels_blackman = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                                                        alignment=alignment,
-                                                                                                        window_type="blackman")
-            fft_real_gaussian, fft_imag_gaussian, labels_gaussian = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                                                        alignment=alignment,
-                                                                                                        window_type="gaussian")
+            fft_real_blackman, fft_imag_blackman, labels_blackman = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                                              alignment=alignment,
+                                                                                                                                              window_type="blackman")
+            fft_real_gaussian, fft_imag_gaussian, labels_gaussian = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                                              alignment=alignment,
+                                                                                                                                              window_type="gaussian")
 
             fft_real_blackman = np.array(fft_real_blackman)
             fft_imag_blackman = np.array(fft_imag_blackman)
@@ -1798,11 +1583,11 @@ def main_ensemble_algebraic(program, algebraic_combination):
             if simulation_number == 25 or simulation_number == 44 or simulation_number == 78:
                 continue
 
-            fft_real_blackman, fft_imag_blackman, labels_blackman = fft_input.apply_fft_windowed_on_sim(
+            fft_real_blackman, fft_imag_blackman, labels_blackman = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(
                 sim_nr=simulation_number,
                 alignment=alignment,
                 window_type="blackman")
-            fft_real_gaussian, fft_imag_gaussian, labels_gaussian = fft_input.apply_fft_windowed_on_sim(
+            fft_real_gaussian, fft_imag_gaussian, labels_gaussian = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(
                 sim_nr=simulation_number,
                 alignment=alignment,
                 window_type="gaussian")
@@ -1841,18 +1626,18 @@ def main_ensemble_algebraic(program, algebraic_combination):
             elif algebraic_combination == "max":
                 autoencoder_features = np.maximum(autoencoder_features_blackman, autoencoder_features_gaussian)
 
-            clustering_labels = SBM.best(autoencoder_features, 25, ccThreshold=5, version=2)
+            clustering_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
             sil_coeffs = silhouette_samples(autoencoder_features, labels_blackman, metric='mahalanobis')
 
             results_ensemble.append([adjusted_rand_score(labels_blackman, clustering_labels),
                                     adjusted_mutual_info_score(labels_blackman, clustering_labels),
                                      np.average(sil_coeffs)])
-            clustering_labels = SBM.best(autoencoder_features_blackman, 25, ccThreshold=5, version=2)
+            clustering_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features_blackman)
             sil_coeffs = silhouette_samples(autoencoder_features_blackman, labels_blackman, metric='mahalanobis')
             results_blackman.append([adjusted_rand_score(labels_blackman, clustering_labels),
                             adjusted_mutual_info_score(labels_blackman, clustering_labels),
                                      np.average(sil_coeffs)])
-            clustering_labels = SBM.best(autoencoder_features_gaussian, 25, ccThreshold=5, version=2)
+            clustering_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features_gaussian)
             sil_coeffs = silhouette_samples(autoencoder_features_gaussian, labels_gaussian, metric='mahalanobis')
             results_gaussian.append([adjusted_rand_score(labels_gaussian, clustering_labels),
                             adjusted_mutual_info_score(labels_gaussian, clustering_labels),
@@ -1872,14 +1657,14 @@ def main_fft_windowed(program, alignment, on_type, window_type):
     epochs = 100
     spike_verif_path = f'./figures/fft_windowed/c{autoencoder_code_size}/{window_type}/{on_type}/align{alignment}/spike_verif'
     plot_path = f'./figures/fft_windowed/c{autoencoder_code_size}/{window_type}/{on_type}/align{alignment}/'
-    weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_windowed--{window_type}-{on_type}_align{alignment}'
+    weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_windowed--{window_type}-{on_type}_align{alignment}'
 
     if not os.path.exists(spike_verif_path):
         os.makedirs(spike_verif_path)
     if not os.path.exists(plot_path):
         os.makedirs(plot_path)
 
-    fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_range(alignment, range_min, 2, window_type)
+    fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_range(alignment, range_min, 2, window_type)
 
     fft_real = np.array(fft_real)
     fft_imag = np.array(fft_imag)
@@ -1908,9 +1693,9 @@ def main_fft_windowed(program, alignment, on_type, window_type):
             if simulation_number == 25 or simulation_number == 44 or simulation_number== 78:
                 continue
 
-            fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                             alignment=alignment,
-                                                                             window_type=window_type)
+            fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                   alignment=alignment,
+                                                                                                                   window_type=window_type)
             fft_real = np.array(fft_real)
             fft_imag = np.array(fft_imag)
 
@@ -1929,11 +1714,11 @@ def main_fft_windowed(program, alignment, on_type, window_type):
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
             pn = 25
-            labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+            labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
             try:
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                        marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
             except KeyError:
                 pass
     if program == "validation":
@@ -1942,9 +1727,9 @@ def main_fft_windowed(program, alignment, on_type, window_type):
             if simulation_number == 25 or simulation_number == 44 or simulation_number== 78:
                 continue
 
-            fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                             alignment=alignment,
-                                                                             window_type=window_type)
+            fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                   alignment=alignment,
+                                                                                                                   window_type=window_type)
             fft_real = np.array(fft_real)
             fft_imag = np.array(fft_imag)
 
@@ -1969,27 +1754,17 @@ def main_fft_windowed(program, alignment, on_type, window_type):
 
             pn = 25
             try:
-                clustering_lstm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                clustering_lstm_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
-                # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
+                # scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
                 #                        marker='o')
-                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_sbm')
+                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_kmeans')
                 #
-                # scatter_plot.plot_grid('SBM' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
+                # scatter_plot.plot_grid('kmeans' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
                 #                        marker='o')
-                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_sbm')
+                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_kmeans')
 
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_lstm_labels)
-
-                scores_lstm = [adjusted_rand_score(labels, clustering_lstm_labels),
-                          adjusted_mutual_info_score(labels, clustering_lstm_labels),
-                          hom,
-                          com,
-                          vm,
-                          calinski_harabasz_score(autoencoder_features, labels),
-                          davies_bouldin_score(autoencoder_features, labels),
-                          silhouette_score(autoencoder_features, labels)
-                          ]
+                scores_lstm = feature_scores(labels, clustering_lstm_labels)
 
                 results_fft.append(scores_lstm)
 
@@ -2036,10 +1811,10 @@ def test_fft_windowed(window_type):
         spikes, labels = ds.get_dataset_simulation(simNr=1, align_to_peak=alignment)
 
         if window_type == "blackman":
-            windowed_spikes = fft_input.apply_blackman_window(spikes)
+            windowed_spikes = apply_blackman_window(spikes)
         # std value from 5-15 to get 68% in mean-std:mean+std
         elif window_type == "gaussian":
-            windowed_spikes = fft_input.apply_gaussian_window(spikes, std=10)
+            windowed_spikes = apply_gaussian_window(spikes, std=10)
 
         # verify_random_outputs(spikes, windowed_spikes, 10, plot_path)
         verify_output(spikes, windowed_spikes, 685, path=plot_path)
@@ -2071,14 +1846,14 @@ def main_dpss(program):
     on_type = "magnitude"
     spike_verif_path = f'./figures/fft_dpss/spike_verif'
     plot_path = f'./figures/fft_dpss/'
-    weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss'
+    weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss'
 
     if not os.path.exists(spike_verif_path):
         os.makedirs(spike_verif_path)
     if not os.path.exists(plot_path):
         os.makedirs(plot_path)
 
-    fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_range(alignment=align, range_min=range_min, range_max=2, window_type=window_type)
+    fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_range(alignment=align, range_min=range_min, range_max=2, window_type=window_type)
 
     fft_real = np.array(fft_real)
     fft_imag = np.array(fft_imag)
@@ -2111,9 +1886,9 @@ def main_dpss(program):
             if simulation_number == 25 or simulation_number == 44 or simulation_number== 78:
                 continue
 
-            fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                             alignment=align,
-                                                                             window_type="none")
+            fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                   alignment=align,
+                                                                                                                   window_type="none")
             fft_real = np.array(fft_real)
             fft_imag = np.array(fft_imag)
 
@@ -2132,11 +1907,11 @@ def main_dpss(program):
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
             pn = 25
-            labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+            labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
             try:
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                        marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
             except KeyError:
                 pass
 
@@ -2146,9 +1921,9 @@ def main_dpss(program):
             if simulation_number == 25 or simulation_number == 44:
                 continue
 
-            fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                             alignment=align,
-                                                                             window_type="none")
+            fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                   alignment=align,
+                                                                                                                   window_type="none")
             fft_real = np.array(fft_real)
             fft_imag = np.array(fft_imag)
 
@@ -2173,27 +1948,17 @@ def main_dpss(program):
 
             pn = 25
             try:
-                clustering_lstm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+                clustering_lstm_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
-                # scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
+                # scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, clustering_lstm_labels,
                 #                        marker='o')
-                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_sbm')
+                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_lstm_kmeans')
                 #
-                # scatter_plot.plot_grid('SBM' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
+                # scatter_plot.plot_grid('kmeans' + str(len(pca_features)), pca_features, pn, clustering_pca_labels,
                 #                        marker='o')
-                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_sbm')
+                # plt.savefig(plot_path + f'gt_model_sim{simulation_number}_pca_kmeans')
 
-                hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_lstm_labels)
-
-                scores_lstm = [adjusted_rand_score(labels, clustering_lstm_labels),
-                          adjusted_mutual_info_score(labels, clustering_lstm_labels),
-                          hom,
-                          com,
-                          vm,
-                          calinski_harabasz_score(autoencoder_features, labels),
-                          davies_bouldin_score(autoencoder_features, labels),
-                          silhouette_score(autoencoder_features, labels)
-                          ]
+                scores_lstm = feature_scores(labels, clustering_lstm_labels)
 
                 results_fft.append(scores_lstm)
 
@@ -2238,14 +2003,14 @@ def main_iterative_dpss(program):
     on_type = "magnitude"
     spike_verif_path = f'./figures/fft_dpss_c{autoencoder_code_size}/spike_verif'
     plot_path = f'./figures/fft_dpss_c{autoencoder_code_size}/'
-    weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss'
+    weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss'
 
     if not os.path.exists(spike_verif_path):
         os.makedirs(spike_verif_path)
     if not os.path.exists(plot_path):
         os.makedirs(plot_path)
 
-    fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_range(alignment=align, range_min=range_min, range_max=2, window_type=window_type)
+    fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_range(alignment=align, range_min=range_min, range_max=2, window_type=window_type)
 
     fft_real = np.array(fft_real)
     fft_imag = np.array(fft_imag)
@@ -2281,9 +2046,9 @@ def main_iterative_dpss(program):
             if simulation_number == 25 or simulation_number == 44 or simulation_number== 78:
                 continue
 
-            fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                             alignment=align,
-                                                                             window_type="none")
+            fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                   alignment=align,
+                                                                                                                   window_type="none")
             fft_real = np.array(fft_real)
             fft_imag = np.array(fft_imag)
 
@@ -2302,17 +2067,17 @@ def main_iterative_dpss(program):
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
             pn = 25
-            sbm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+            kmeans_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
             try:
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, sbm_labels,
+                scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, kmeans_labels,
                                        marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
             except KeyError:
                 pass
 
             kmeans = KMeans(n_clusters=2, random_state=0).fit(autoencoder_features)
             kmeans_labels = kmeans.labels_
-            scatter_plot.plot('SBM' + str(len(autoencoder_features)), autoencoder_features, kmeans_labels,
+            scatter_plot.plot('kmeans' + str(len(autoencoder_features)), autoencoder_features, kmeans_labels,
                                    marker='o')
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
 
@@ -2322,8 +2087,8 @@ def main_iterative_dpss(program):
             min_distance = 10000000
             for first_point in first_cluster:
                 for second_point in second_cluster:
-                    if min_distance > distance(first_point, second_point):
-                        min_distance = distance(first_point, second_point)
+                    if min_distance > euclidean_point_distance(first_point, second_point):
+                        min_distance = euclidean_point_distance(first_point, second_point)
 
             if min_distance > 0.25:
                 if np.mean(first_cluster, axis=0)[0] < np.mean(second_cluster, axis=0)[0]:
@@ -2347,7 +2112,7 @@ def main_iterative_dpss(program):
 
         spike_verif_path = f'./figures/fft_dpss_iter2_c{autoencoder_code_size}/spike_verif'
         plot_path = f'./figures/fft_dpss_iter2_c{autoencoder_code_size}/'
-        weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_iter2'
+        weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_iter2'
 
         if not os.path.exists(spike_verif_path):
             os.makedirs(spike_verif_path)
@@ -2369,17 +2134,17 @@ def main_iterative_dpss(program):
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
             pn = 25
-            labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+            labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
             try:
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                        marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
             except KeyError:
                 pass
 
             kmeans = KMeans(n_clusters=2, random_state=0).fit(autoencoder_features)
             kmeans_labels = kmeans.labels_
-            scatter_plot.plot('SBM' + str(len(autoencoder_features)), autoencoder_features, kmeans_labels,
+            scatter_plot.plot('kmeans' + str(len(autoencoder_features)), autoencoder_features, kmeans_labels,
                               marker='o')
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
 
@@ -2410,14 +2175,14 @@ def main_dpss_test(program):
     on_type = "magnitude"
     spike_verif_path = f'./figures/fft_dpss_test/spike_verif'
     plot_path = f'./figures/fft_dpss_test/'
-    weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss'
+    weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss'
 
     if not os.path.exists(spike_verif_path):
         os.makedirs(spike_verif_path)
     if not os.path.exists(plot_path):
         os.makedirs(plot_path)
 
-    fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_range(alignment=align, range_min=range_min, range_max=range_max, window_type=window_type)
+    fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_range(alignment=align, range_min=range_min, range_max=range_max, window_type=window_type)
 
     fft_real = np.array(fft_real)
     fft_imag = np.array(fft_imag)
@@ -2436,9 +2201,9 @@ def main_dpss_test(program):
         autoencoder.load_weights(weights_path)
 
         simulation_number = 4
-        fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                         alignment=align,
-                                                                         window_type="none")
+        fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                               alignment=align,
+                                                                                                               window_type="none")
         fft_real = np.array(fft_real)
         fft_imag = np.array(fft_imag)
 
@@ -2460,11 +2225,11 @@ def main_dpss_test(program):
         plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
         pn = 25
-        labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+        labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
         try:
-            scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+            scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                    marker='o')
-            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
         except KeyError:
             pass
 
@@ -2472,9 +2237,9 @@ def main_dpss_test(program):
         autoencoder.load_weights(weights_path)
 
         simulation_number = 13
-        fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                         alignment=align,
-                                                                         window_type="none")
+        fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                               alignment=align,
+                                                                                                               window_type="none")
         fft_real = np.array(fft_real)
         fft_imag = np.array(fft_imag)
 
@@ -2499,11 +2264,11 @@ def main_dpss_test(program):
         plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
         pn = 25
-        labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+        labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
         try:
-            scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+            scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                    marker='o')
-            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
         except KeyError:
             pass
 
@@ -2511,9 +2276,9 @@ def main_dpss_test(program):
         autoencoder.load_weights(weights_path)
 
         simulation_number = 26
-        fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                         alignment=align,
-                                                                         window_type="none")
+        fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                               alignment=align,
+                                                                                                               window_type="none")
         fft_real = np.array(fft_real)
         fft_imag = np.array(fft_imag)
 
@@ -2538,11 +2303,11 @@ def main_dpss_test(program):
         plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
         pn = 25
-        labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+        labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
         try:
-            scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+            scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                    marker='o')
-            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
         except KeyError:
             pass
 
@@ -2550,9 +2315,9 @@ def main_dpss_test(program):
         autoencoder.load_weights(weights_path)
 
         simulation_number = 40
-        fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                         alignment=align,
-                                                                         window_type="none")
+        fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                               alignment=align,
+                                                                                                               window_type="none")
         fft_real = np.array(fft_real)
         fft_imag = np.array(fft_imag)
 
@@ -2577,11 +2342,11 @@ def main_dpss_test(program):
         plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
         pn = 25
-        labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+        labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
         try:
-            scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+            scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                    marker='o')
-            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
         except KeyError:
             pass
 
@@ -2611,7 +2376,7 @@ def main_dpss_cascade():
 
         spike_verif_path = f'./figures/fft_dpss_cascade/spike_verif{i}'
         plot_path = f'./figures/fft_dpss_cascade/window{i}/'
-        weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_cascade{i}'
+        weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_cascade{i}'
 
         if not os.path.exists(spike_verif_path):
             os.makedirs(spike_verif_path)
@@ -2651,9 +2416,9 @@ def main_dpss_cascade():
             if simulation_number == 25 or simulation_number == 44 or simulation_number== 78:
                 continue
 
-            fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                             alignment=align,
-                                                                             window_type="none")
+            fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                   alignment=align,
+                                                                                                                   window_type="none")
             fft_real = np.array(fft_real)
             fft_imag = np.array(fft_imag)
 
@@ -2675,11 +2440,11 @@ def main_dpss_cascade():
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
             pn = 25
-            labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+            labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
             try:
-                scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+                scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                        marker='o')
-                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+                plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
             except KeyError:
                 pass
 
@@ -2691,7 +2456,7 @@ def main_dpss_cascade():
 
     spike_verif_path = f'./figures/fft_dpss_cascade/spike_verif'
     plot_path = f'./figures/fft_dpss_cascade/'
-    weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_cascade'
+    weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_cascade'
 
     if not os.path.exists(spike_verif_path):
         os.makedirs(spike_verif_path)
@@ -2718,9 +2483,9 @@ def main_dpss_cascade():
         if simulation_number == 25 or simulation_number == 44 or simulation_number == 78:
             continue
 
-        _, _, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                           alignment=align,
-                                                           window_type="none")
+        _, _, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                 alignment=align,
+                                                                                                 window_type="none")
         labels = labels[labels != 0]
 
         sim_window_codes = []
@@ -2740,11 +2505,11 @@ def main_dpss_cascade():
         plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
         pn = 25
-        labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+        labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
         try:
-            scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+            scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
                                    marker='o')
-            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+            plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
         except KeyError:
             pass
 
@@ -2772,7 +2537,7 @@ def main_dpss_cascade_validation():
         stacked_code_list = []
         window_codes = []
 
-        weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_cascade{i}'
+        weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_cascade{i}'
 
         windowed_spikes = spikes * win[i]
 
@@ -2800,9 +2565,9 @@ def main_dpss_cascade_validation():
             if simulation_number == 25 or simulation_number == 44 or simulation_number== 78:
                 continue
 
-            fft_real, fft_imag, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                                             alignment=align,
-                                                                             window_type="none")
+            fft_real, fft_imag, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                                   alignment=align,
+                                                                                                                   window_type="none")
             fft_real = np.array(fft_real)
             fft_imag = np.array(fft_imag)
 
@@ -2821,19 +2586,9 @@ def main_dpss_cascade_validation():
             autoencoder_features = pca_2d.fit_transform(autoencoder_features)
 
             pn = 25
-            clustering_lstm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+            clustering_lstm_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
-            hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_lstm_labels)
-
-            scores_lstm = [adjusted_rand_score(labels, clustering_lstm_labels),
-                           adjusted_mutual_info_score(labels, clustering_lstm_labels),
-                           hom,
-                           com,
-                           vm,
-                           calinski_harabasz_score(autoencoder_features, labels),
-                           davies_bouldin_score(autoencoder_features, labels),
-                           silhouette_score(autoencoder_features, labels)
-                           ]
+            scores_lstm = feature_scores(labels, clustering_lstm_labels)
 
             results_fft.append(scores_lstm)
 
@@ -2855,7 +2610,7 @@ def main_dpss_cascade_validation():
 
     stacked_codes = np.hstack(code_list)
 
-    weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_cascade'
+    weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_fft_dpss_cascade'
 
     autoencoder = AutoencoderModel(input_size=len(stacked_codes[0]),
                                    encoder_layer_sizes=autoencoder_cascade_layer_sizes,
@@ -2872,9 +2627,9 @@ def main_dpss_cascade_validation():
         if simulation_number == 25 or simulation_number == 44 or simulation_number == 78:
             continue
 
-        _, _, labels = fft_input.apply_fft_windowed_on_sim(sim_nr=simulation_number,
-                                                           alignment=align,
-                                                           window_type="none")
+        _, _, labels = dataset_parsing.simulations_dataset_autoencoder.apply_fft_windowed_on_sim(sim_nr=simulation_number,
+                                                                                                 alignment=align,
+                                                                                                 window_type="none")
         labels = labels[labels != 0]
 
         sim_window_codes = []
@@ -2891,7 +2646,7 @@ def main_dpss_cascade_validation():
         autoencoder_features = pca_2d.fit_transform(autoencoder_features)
 
         pn = 25
-        clustering_lstm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+        clustering_lstm_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
 
         hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_lstm_labels)
 
@@ -2928,7 +2683,7 @@ def main_decision_tree(program):
     align = 2
     spike_verif_path = f'./figures/autoencoder_decisiontree/spike_verif'
     plot_path = f'./figures/autoencoder_decisiontree/'
-    weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_decisiontree'
+    weights_path = f'weights/autoencoder_allsim_e100_d80_nonoise_c{autoencoder_code_size}_decisiontree'
 
     if not os.path.exists(spike_verif_path):
         os.makedirs(spike_verif_path)
@@ -3007,7 +2762,7 @@ def main_autoencoder_expansion(program):
     no_noise = False
     spike_verif_path = f'./figures/expanded/c{autoencoder_expanded_code_size}/spike_verif'
     plot_path = f'./figures/expanded/c{autoencoder_expanded_code_size}/'
-    weights_path = f'feature_extraction/autoencoder/weights/autoencoder_allsim_e100_d80_c{autoencoder_expanded_layer_sizes}_expanded'
+    weights_path = f'weights/autoencoder_allsim_e100_d80_c{autoencoder_expanded_layer_sizes}_expanded'
 
     if not os.path.exists(spike_verif_path):
         os.makedirs(spike_verif_path)
@@ -3052,11 +2807,11 @@ def main_autoencoder_expansion(program):
             plt.savefig(plot_path + f'gt_model_sim{simulation_number}')
 
             pn = 25
-            labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
+            labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
             # try:
-            #     scatter_plot.plot_grid('SBM' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
+            #     scatter_plot.plot_grid('kmeans' + str(len(autoencoder_features)), autoencoder_features, pn, labels,
             #                            marker='o')
-            #     plt.savefig(plot_path + f'gt_model_sim{simulation_number}_sbm')
+            #     plt.savefig(plot_path + f'gt_model_sim{simulation_number}_kmeans')
             # except KeyError:
             #     pass
     if program == "validate":
@@ -3084,8 +2839,8 @@ def main_autoencoder_expansion(program):
             autoencoder_features = pca_2d.fit_transform(autoencoder_features)
 
             pn = 25
-            clustering_lstm_labels = SBM.parallel(autoencoder_features, pn, ccThreshold=5, version=2)
-            clustering_pca_labels = SBM.parallel(pca_features, pn, ccThreshold=5, version=2)
+            clustering_lstm_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(autoencoder_features)
+            clustering_pca_labels = KMeans(n_clusters=len(np.unique(labels))).fit_predict(pca_features)
 
             hom, com, vm = homogeneity_completeness_v_measure(labels, clustering_lstm_labels)
 
@@ -3133,7 +2888,7 @@ def main_autoencoder_expansion(program):
         print(f"PCA -> SS - {mean_values[7]}")
 
 
-# main("sbm_graph", sub="")
+
 # main("autoencoder", sub="")
 # main("autoencoder_single_sim", sub="")
 # main("lstm_single_sim", sub="")
@@ -3407,44 +3162,6 @@ def run_autoencoder_cascaded(simulation_number, autoencoder_layer_sizes, code_si
 
 
 
-
-
-
-def plot_metrics_clustering_eval(title, pca, oae, xlabel, ylabel):
-    max_saved = max(oae[5], pca[5])
-    oae[5] = oae[5] / max_saved
-    pca[5] = pca[5] / max_saved
-
-    max_saved = max(oae[4], pca[4])
-    oae[4] = oae[4] / max_saved
-    pca[4] = pca[4] / max_saved
-
-    plt.title(title)
-    plt.plot([0, 1], [0, 1], 'g--')
-    plt.scatter(pca, oae, c=[0,0,0,0,1,0,0])
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.show()
-
-
-def plot_metrics_fe_eval(title, pca, oae, xlabel, ylabel):
-    max_saved = max(oae[0], pca[0])
-    oae[0] = oae[0] / max_saved
-    pca[0] = pca[0] / max_saved
-
-    max_saved = max(oae[1], pca[1])
-    oae[1] = oae[1] / max_saved
-    pca[1] = pca[1] / max_saved
-
-    plt.title(title)
-    plt.plot([-0.5, 1], [-0.5, 1], 'g--')
-    plt.scatter(pca, oae, c=[1,0,0])
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    plt.show()
-
-
-
 def calculate_metrics_specific(spikes, labels, gt_labels, method="PCA", components=2, scaling="-"):
     spikes = np.array(spikes)
     labels = np.array(labels)
@@ -3490,35 +3207,7 @@ def calculate_metrics_specific(spikes, labels, gt_labels, method="PCA", componen
                                                           loss_function=loss_function,
                                                           scale=scaling, shuff=True)
 
-    return compute_metrics(components, scaling, features, gt_labels)
-
-
-def create_plot_metrics(data="C37", components=2, scaling="minmax"):
-    if data=="C28":
-        spikes, labels, gt_labels = read_kampff_c28()
-    elif data=="C37":
-        spikes, labels, gt_labels = read_kampff_c37()
-
-
-    # for components in [2, 3, 20]:
-    # for scaling in ["-", "minmax", "divide_amplitude"]:
-
-    method1 = "PCA"
-    # method2 = "AE"
-    method2 = "AE"
-    non_determenistic_runs = 10
-    metrics1 = calculate_metrics_specific(spikes, labels, gt_labels, method=method1, components=components, scaling=scaling)
-
-    sum = []
-    for i in range(non_determenistic_runs):
-        metrics2 = calculate_metrics_specific(spikes, labels, gt_labels, method=method2, components=components, scaling=scaling)
-        sum.append(metrics2)
-
-    sum = np.array(sum)
-    metrics2 = np.mean(sum, axis=0)
-
-    plot_metrics_clustering_eval(f"{data} - {components}D - {scaling}", metrics1[:7], metrics2[:7], method1, method2)
-    plot_metrics_fe_eval(f"{data} - {components}D - {scaling}", metrics1[7:], metrics2[7:], method1, method2)
+    return compute_metrics(features, gt_labels)
 
 
 
