@@ -1,10 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
+from sklearn import preprocessing
 
 import constants as cs
-
-from sbm.ISBM import data_preprocessing
 
 
 def plot(title, X, labels=None, plot=True, marker='o', alpha=1):
@@ -45,7 +44,7 @@ def plot(title, X, labels=None, plot=True, marker='o', alpha=1):
                 ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=label_color, marker=marker, edgecolors='k', alpha=alpha)
 
 
-def plot_grid(title, X, pn, labels=None, plot=True, marker='o', adaptivePN=False):
+def plot_grid(title, X, pn, labels=None, plot=True, marker='o'):
     """
     Plots the dataset with grid
     :param title: string - the title of the plot
@@ -57,7 +56,7 @@ def plot_grid(title, X, pn, labels=None, plot=True, marker='o', adaptivePN=False
 
     :returns None
     """
-    X, pn = data_preprocessing(X, pn, adaptivePN=adaptivePN)
+    X = preprocessing.MinMaxScaler((0, 1)).fit_transform(X)
     if plot:
         nrDim = len(X[0])
         label_color = [cs.LABEL_COLOR_MAP[l] for l in labels]

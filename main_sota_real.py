@@ -29,12 +29,12 @@ def evaluate(method):
     met, klabels = compute_real_metrics(data, k=4)
 
     scatter_plot.plot(f'K-Means on C28', data, klabels, marker='o')
-    plt.savefig(f"./feature_extraction/autoencoder/analysis/" + f'real_m045_{index}_{method}_km')
+    plt.savefig(f"./figures/analysis/" + f'real_m045_{index}_{method}_km')
 
     metrics.append(met)
 
     metrics = np.array(metrics)
-    np.savetxt(f"./feature_extraction/autoencoder/analysis/real_m045_{index}_{method}.csv",
+    np.savetxt(f"./figures/analysis/real_m045_{index}_{method}.csv",
                np.around(np.array(metrics), decimals=3).transpose(), delimiter=",")
 
 

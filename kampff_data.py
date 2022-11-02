@@ -6,7 +6,7 @@ from sklearn.manifold import Isomap
 from sklearn.metrics import silhouette_score
 
 from dataset_parsing.read_kampff import read_kampff_c37, read_kampff_c28
-from main_autoencoder import run_autoencoder
+from autoencoder import run_autoencoder
 from ae_parameters import output_activation, loss_function
 from metrics import compute_real_metrics_gt_and_clust_labels, compute_metrics
 from preprocess.data_scaling import choose_scale
@@ -73,32 +73,33 @@ def evaluate_kampff_data(data, method):
 
     if method == 'pca':
         pca_2d = PCA(n_components=2)
-        data = pca_2d.fit_transform(spikes)
+        fe_data = pca_2d.fit_transform(spikes)
     if method == 'ica':
         ica_2d = FastICA(n_components=2)
-        data = ica_2d.fit_transform(spikes)
+        fe_data = ica_2d.fit_transform(spikes)
     if method == 'isomap':
         iso_2d = Isomap(n_neighbors=100, n_components=2, eigen_solver='arpack', path_method='D', n_jobs=-1)
-        data = iso_2d.fit_transform(spikes)
+        fe_data = iso_2d.fit_transform(spikes)
 
-    scatter_plot.plot(f'{method} on {data}', data, gt_labels, marker='o')
-    plt.savefig(f"./analysis/" + f'{method}_{data}')
+    scatter_plot.plot(f'{method} on {data}', fe_data, gt_labels, marker='o')
+    plt.show()
+    plt.savefig(f"./figures/analysis/" + f'{method}_{data}')
 
-    met, klabels = compute_real_metrics_gt_and_clust_labels(data, gt_labels, k=k)
+    met, klabels = compute_real_metrics_gt_and_clust_labels(fe_data, gt_labels, k=k)
 
-    scatter_plot.plot(f'{method}+K-Means on {data}', data, klabels, marker='o')
-    plt.savefig(f"./analysis/" + f'{method}_km_{data}')
+    scatter_plot.plot(f'{method}+K-Means on {data}', fe_data, klabels, marker='o')
+    plt.savefig(f"./figures/analysis/" + f'{method}_km_{data}')
 
     metrics.append(met)
 
     metrics = np.array(metrics)
-    np.savetxt(f"./feature_extraction/autoencoder/analysis/real_C28_{method}.csv",
+    np.savetxt(f"./figures/analysis/real_C28_{method}.csv",
                np.around(np.array(metrics), decimals=3).transpose(), delimiter=",")
 
 
 
 # evaluate_kampff_data('C28', 'pca')
-# evaluate_kampff_data('C37', 'pca')
+evaluate_kampff_data('C37', 'pca')
 
 
 
@@ -156,6 +157,6 @@ def calculate_metrics_table():
 
             metrics_saved.append(compute_metrics(components, scaling, features, labels, gt_labels))
 
-    np.savetxt(f"./feature_extraction/autoencoder/analysis/analysis_c37_{method}.csv", np.around(np.array(metrics_saved), decimals=3).transpose(), delimiter=",")
+    np.savetxt(f"./figures/analysis/analysis_c37_{method}.csv", np.around(np.array(metrics_saved), decimals=3).transpose(), delimiter=",")
 
 # calculate_metrics_table()

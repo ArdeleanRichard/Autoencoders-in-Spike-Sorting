@@ -5,11 +5,13 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import fowlkes_mallows_score, adjusted_rand_score, adjusted_mutual_info_score, v_measure_score, \
     silhouette_score, calinski_harabasz_score, davies_bouldin_score, homogeneity_completeness_v_measure
 
-from ae_variants import calculate_metrics_specific
+from autoencoder import run_autoencoder
 from dataset_parsing.read_kampff import read_kampff_c28, read_kampff_c37
 from preprocess.data_scaling import choose_scale
 from validation.scores import purity_score
 from visualization import scatter_plot
+
+
 
 
 def compare_metrics(Data, X, y, n_clusters):
@@ -192,6 +194,57 @@ def plot_metrics_fe_eval(title, pca, oae, xlabel, ylabel):
 
 
 
+
+def calculate_metrics_specific(spikes, labels, gt_labels, method="PCA", components=2, scaling="-"):
+    spikes = np.array(spikes)
+    labels = np.array(labels)
+
+    output_activation = "tanh"
+    loss_function = "mse"
+
+    if method == "PCA":
+        spikes = choose_scale(spikes[0], scaling)
+        pca_instance = PCA(n_components=components)
+        features = pca_instance.fit_transform(spikes)
+    elif method == "AE":
+        if components == 20:
+            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
+                                                          labels=labels, gt_labels=gt_labels, index=0,
+                                                          ae_type="normal",
+                                                          ae_layers=np.array([50, 40, 30, 20, 10, 5]),
+                                                          code_size=components,
+                                                          output_activation=output_activation,
+                                                          loss_function=loss_function,
+                                                          scale=scaling, shuff=True, nr_epochs=100)
+
+        else:
+            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
+                                                          labels=labels, gt_labels=gt_labels, index=0,
+                                                          ae_type="normal",
+                                                          ae_layers=np.array([50, 40, 30, 20, 10, 5]),
+                                                          code_size=components,
+                                                          output_activation=output_activation,
+                                                          loss_function=loss_function,
+                                                          scale=scaling, shuff=True, nr_epochs=100)
+    elif method == "Orthogonal AE":
+        if components == 20:
+            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
+                                                          labels=labels, gt_labels=gt_labels, index=0,
+                                                          ae_type="orthogonal",
+                                                          ae_layers=[60, 50, 40, 30], code_size=components,
+                                                          output_activation=output_activation,
+                                                          loss_function=loss_function,
+                                                          scale=scaling, shuff=True)
+        else:
+            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
+                                                          labels=labels, gt_labels=gt_labels, index=0,
+                                                          ae_type="orthogonal",
+                                                          ae_layers=[40, 20, 10, 5], code_size=components,
+                                                          output_activation=output_activation,
+                                                          loss_function=loss_function,
+                                                          scale=scaling, shuff=True)
+
+    return compute_metrics(features, gt_labels)
 
 
 def create_plot_metrics(data="C37", components=2, scaling="minmax"):

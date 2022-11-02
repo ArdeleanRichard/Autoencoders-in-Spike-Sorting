@@ -29,7 +29,7 @@ from neural_networks.autoencoder.lstm_input import lstm_get_codes
 from neural_networks.autoencoder.model_auxiliaries import verify_output, get_codes, verify_random_outputs, \
     get_reconstructions
 from neural_networks.autoencoder.autoencoder import AutoencoderModel
-from main_autoencoder import run_autoencoder
+from autoencoder import run_autoencoder
 from ae_parameters import MODEL_PATH, PLOT_PATH, output_activation, loss_function
 from visualization import scatter_plot
 from ae_parameters import autoencoder_layer_sizes, autoencoder_code_size, lstm_layer_sizes, lstm_code_size, autoencoder_cascade_layer_sizes, \
@@ -3161,53 +3161,6 @@ def run_autoencoder_cascaded(simulation_number, autoencoder_layer_sizes, code_si
 
 
 
-
-def calculate_metrics_specific(spikes, labels, gt_labels, method="PCA", components=2, scaling="-"):
-    spikes = np.array(spikes)
-    labels = np.array(labels)
-    if method == "PCA":
-        spikes = choose_scale(spikes[0], scaling)
-        pca_instance = PCA(n_components=components)
-        features = pca_instance.fit_transform(spikes)
-    elif method == "AE":
-        if components == 20:
-            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
-                                                          labels=labels, gt_labels=gt_labels, index=0,
-                                                          ae_type="normal",
-                                                          ae_layers=np.array([50, 40, 30, 20, 10, 5]),
-                                                          code_size=components,
-                                                          output_activation=output_activation,
-                                                          loss_function=loss_function,
-                                                          scale=scaling, shuff=True, nr_epochs=100)
-
-        else:
-            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
-                                                          labels=labels, gt_labels=gt_labels, index=0,
-                                                          ae_type="normal",
-                                                          ae_layers=np.array([50, 40, 30, 20, 10, 5]),
-                                                          code_size=components,
-                                                          output_activation=output_activation,
-                                                          loss_function=loss_function,
-                                                          scale=scaling, shuff=True, nr_epochs=100)
-    elif method == "Orthogonal AE":
-        if components == 20:
-            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
-                                                          labels=labels, gt_labels=gt_labels, index=0,
-                                                          ae_type="orthogonal",
-                                                          ae_layers=[60, 50, 40, 30], code_size=components,
-                                                          output_activation=output_activation,
-                                                          loss_function=loss_function,
-                                                          scale=scaling, shuff=True)
-        else:
-            features, labels, gt_labels = run_autoencoder(data_type="real", simulation_number=0, data=spikes,
-                                                          labels=labels, gt_labels=gt_labels, index=0,
-                                                          ae_type="orthogonal",
-                                                          ae_layers=[40, 20, 10, 5], code_size=components,
-                                                          output_activation=output_activation,
-                                                          loss_function=loss_function,
-                                                          scale=scaling, shuff=True)
-
-    return compute_metrics(features, gt_labels)
 
 
 
