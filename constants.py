@@ -40,3 +40,20 @@ LABEL_COLOR_MAP = {-1: 'gray',
                    33: 'turquoise',
                    34: 'wheat',
                    }
+
+
+LABEL_COLOR_MAP2 = {
+                   0: 'lightskyblue',
+                   1: 'deepskyblue',
+                   2: 'violet',
+                   3: 'lightcoral',
+                   4: 'coral',
+                   5: 'darksalmon',
+                   6: 'salmon',
+                   7: 'lightsalmon',
+                   8: 'tomato',
+                   9: 'indianred',
+                   10: 'firebrick',
+                   11: 'brown',
+                   12: 'maroon',
+                   }

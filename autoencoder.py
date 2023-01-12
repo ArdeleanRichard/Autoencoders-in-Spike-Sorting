@@ -18,7 +18,7 @@ from preprocess.data_scaling import choose_scale
 from visualization import scatter_plot
 
 
-def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index, ae_type, ae_layers, code_size, output_activation, loss_function, scale, shuff=True, noNoise=False, nr_epochs=100, doPlot=False, dropout=0.0, learning_rate=0.001, verbose=1):
+def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index, ae_type, ae_layers, code_size, output_activation, loss_function, scale, shuff=True, noNoise=False, nr_epochs=100, doPlot=False, dropout=0.0, weight_init='glorot_uniform', learning_rate=0.001, verbose=1):
     if data_type == "real":
         spikes = np.array(data[index])
         labels = np.array(labels[index])
@@ -26,6 +26,9 @@ def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index
         spikes = np.array(data)
     elif data_type == "sim":
         spikes, labels = ds.get_dataset_simulation(simNr=simulation_number, align_to_peak=2)
+    else:
+        spikes = np.array(data)
+        labels = np.array(labels)
 
     # print(spikes.shape)
 
@@ -39,7 +42,7 @@ def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index
 
     if shuff == True:
         if data_type == "m0":
-            spikes = shuffle(spikes, random_state=None)
+            spikes, gt_labels = shuffle(spikes, gt_labels, random_state=None)
         elif data_type != "real":
             spikes, labels = shuffle(spikes, labels, random_state=None)
         else:
@@ -56,7 +59,8 @@ def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index
                                        code_size=code_size,
                                        output_activation=output_activation,
                                        loss_function=loss_function,
-                                       dropout=dropout)
+                                       dropout=dropout,
+                                       initializer=weight_init)
         autoencoder.train(spikes, epochs=nr_epochs, verbose=verbose, learning_rate=learning_rate)
 
         autoencoder.save_weights(
@@ -98,7 +102,7 @@ def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index
         # autoencoder.load_weights('./feature_extraction/autoencoder/weights/autoencoder_cs{code_size}_oa-tanh_sim4_e100')
         encoder, autoencoder = autoencoder.return_encoder()
 
-        verify_output(spikes, encoder, autoencoder, path=PLOT_PATH+"tied/")
+        # verify_output(spikes, encoder, autoencoder, path=PLOT_PATH+"tied/")
         autoencoder_features = get_codes(spikes, encoder)
     if ae_type == "contractive":
         autoencoder = AutoencoderModel(input_size=len(spikes[0]),
@@ -115,7 +119,7 @@ def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index
         # autoencoder.load_weights('./feature_extraction/autoencoder/weights/autoencoder_cs{code_size}_oa-tanh_sim4_e100')
         encoder, autoencoder = autoencoder.return_encoder()
 
-        verify_output(spikes, encoder, autoencoder, path=PLOT_PATH)
+        # verify_output(spikes, encoder, autoencoder, path=PLOT_PATH)
         autoencoder_features = get_codes(spikes, encoder)
     elif ae_type == "tied2":
         autoencoder = AutoencoderTied2Model(input_size=len(spikes[0]),
@@ -180,7 +184,7 @@ def run_autoencoder(data_type, simulation_number, data, labels, gt_labels, index
         # autoencoder.load_weights('./feature_extraction/autoencoder/weights/autoencoder_cs{code_size}_oa-tanh_sim4_e100')
         encoder, autoencoder = autoencoder.return_encoder()
 
-        verify_output(spikes, encoder, autoencoder, path=PLOT_PATH)
+        # verify_output(spikes, encoder, autoencoder, path=PLOT_PATH)
         autoencoder_features = get_codes(spikes, encoder)
     elif ae_type == "lstm":
         timesteps=20

@@ -12,7 +12,6 @@ import constants as cs
 from dataset_parsing import simulations_dataset as ds
 import seaborn as sns
 
-from sbm.ISBM import data_preprocessing
 from scatter_plot import plot
 
 
@@ -74,6 +73,22 @@ def plot_spikes(spikes, step=5, title="", path='./figures/spikes_on_cluster/', s
         plt.savefig(path+title)
     if show:
         plt.show()
+
+
+def plot_spikes_by_clusters(spikes, labels, mean=True):
+    for lab in np.unique(labels):
+        plt.figure()
+        plt.xlabel('Time')
+        plt.ylabel('Magnitude')
+        for spike in spikes[labels==lab]:
+            if mean == True:
+                plt.plot(spike, 'gray')
+            else:
+                plt.plot(spike)
+        if mean == True:
+            plt.plot(np.mean(spikes[labels==lab], axis=0), cs.LABEL_COLOR_MAP[lab])
+    plt.show()
+
 
 
 def spikes_per_cluster(spikes, labels, sim_nr):

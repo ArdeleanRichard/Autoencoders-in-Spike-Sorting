@@ -10,7 +10,7 @@ from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score, sil
     v_measure_score, fowlkes_mallows_score
 
 from dataset_parsing import simulations_dataset as ds
-from metrics import compare_metrics, compute_metrics
+from validation.performance import compare_metrics, compute_metrics
 from visualization import scatter_plot
 
 
@@ -297,36 +297,4 @@ def apply_kmeans(simulation_number):
 
 
 
-def evaluate_method(method):
-    metrics = []
-    for simulation_number in [1,4,16,35]:
-        print(simulation_number)
-        if simulation_number == 25 or simulation_number == 44 or simulation_number == 78:
-            met = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-            metrics.append(met)
-            continue
-        spikes, labels = ds.get_dataset_simulation(simNr=simulation_number, align_to_peak=2)
-        if method == 'pca':
-            pca_2d = PCA(n_components=2)
-            data = pca_2d.fit_transform(spikes)
-        if method == 'ica':
-            ica_2d = FastICA(n_components=2)
-            data = ica_2d.fit_transform(spikes)
-        if method == 'isomap':
-            iso_2d = Isomap(n_neighbors=100, n_components=2, eigen_solver='arpack', path_method='D', n_jobs=-1)
-            data = iso_2d.fit_transform(spikes)
-
-        scatter_plot.plot(f'{method} on Sim{simulation_number}', data, labels, marker='o')
-        plt.savefig(f"./feature_extraction/autoencoder/analysis/" + f'{method}_{simulation_number}')
-
-        met = compute_metrics(data, labels)
-        metrics.append(met)
-
-    metrics = np.array(metrics)
-    np.savetxt(f"./feature_extraction/autoencoder/analysis/analyze_{method}.csv",
-               np.around(np.array(metrics), decimals=3).transpose(), delimiter=",")
-
-# evaluate_method('pca')
-# evaluate_method('ica')
-# evaluate_method('isomap')
 

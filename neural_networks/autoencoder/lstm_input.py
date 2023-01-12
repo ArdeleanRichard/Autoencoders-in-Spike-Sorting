@@ -60,7 +60,7 @@ def temporalize_spikes(spikes, timesteps, overlap=0):
     output_X = []
     if overlap < timesteps:
         for spike in spikes:
-            spike = np.pad(spike, (0, 2), 'constant')
+            spike = np.pad(spike, (0, 1), 'constant')
             temp = []
             for i in range(0, len(spike), timesteps):
                 if overlap != 0 and i >= overlap:

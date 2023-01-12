@@ -9,11 +9,40 @@ from keras import backend as K
 from neural_networks.autoencoder.model_auxiliaries import get_codes, get_loss_function, get_activation_function
 
 
+def my_init(shape, dtype=None):
+    init = np.random.randn(*shape) * np.sqrt(2/shape[-1])
+    print(init.shape)
+    kernel_initializer = tf.constant_initializer(init)
+    return kernel_initializer
+
+class ExampleRandomNormal(tf.keras.initializers.Initializer):
+    def __init__(self, mean, stddev):
+      self.mean = mean
+      self.stddev = stddev
+
+    def __call__(self, shape, dtype=None):
+      return tf.random.normal(shape, mean=self.mean, stddev=self.stddev, dtype=dtype)
+
+    def get_config(self):  # To support serialization
+      return {'mean': self.mean, 'stddev': self.stddev}
+
+class CustomInitializer(tf.keras.initializers.Initializer):
+    def __init__(self):
+        pass
+
+    def __call__(self, shape, dtype=None):
+        init = np.random.randn(*shape) * np.sqrt(2 / shape[-1])
+        kernel_initializer = tf.constant_initializer(init)
+        return kernel_initializer
+
+    def get_config(self):  # To support serialization
+      return {}
+
 class AutoencoderModel(Model):
     """
     Autoencoder Model - automatic creation of the model
     """
-    def __init__(self, input_size, encoder_layer_sizes, decoder_layer_sizes, code_size, output_activation, loss_function, dropout=0.0):
+    def __init__(self, input_size, encoder_layer_sizes, decoder_layer_sizes, code_size, output_activation, loss_function, dropout=0.0, initializer='glorot_uniform'):
         super(AutoencoderModel, self).__init__()
         self.input_size = input_size
         self.loss_function = loss_function
@@ -21,9 +50,10 @@ class AutoencoderModel(Model):
 
         self.input_spike = Input(shape=(self.input_size,))
 
+
         current_layer = self.input_spike
         for hidden_layer_size in encoder_layer_sizes:
-            hidden_layer = Dense(hidden_layer_size, activation='relu')(current_layer)
+            hidden_layer = Dense(hidden_layer_size, activation='relu', kernel_initializer=initializer)(current_layer)
             if dropout == True:
                 dropout_layer = Dropout(dropout)(hidden_layer)
                 current_layer = dropout_layer
@@ -37,7 +67,7 @@ class AutoencoderModel(Model):
         # self.code_input = Input(shape=(code_size,))
         current_layer = self.code_result
         for hidden_layer_size in decoder_layer_sizes:
-            hidden_layer = Dense(hidden_layer_size, activation='relu')(current_layer)
+            hidden_layer = Dense(hidden_layer_size, activation='relu', kernel_initializer=initializer)(current_layer)
             if dropout != 0:
                 dropout_layer = Dropout(dropout)(hidden_layer)
                 current_layer = dropout_layer
@@ -49,6 +79,7 @@ class AutoencoderModel(Model):
         self.autoencoder = Model(self.input_spike, self.output_spike)
 
         self.encoder = Model(self.input_spike, self.code_result)
+
 
 
     def pre_train(self, training_data, autoencoder_layer_sizes, epochs):

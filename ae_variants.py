@@ -14,7 +14,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import adjusted_rand_score, adjusted_mutual_info_score, silhouette_samples, calinski_harabasz_score, davies_bouldin_score, silhouette_score, homogeneity_completeness_v_measure
 from sklearn.utils import shuffle
 
-from metrics import compute_metrics, compare_features, feature_scores
+from validation.performance import compute_metrics, feature_scores, compare_features
 import dataset_parsing.simulations_dataset_autoencoder
 from dataset_parsing.read_kampff import read_kampff_c28, read_kampff_c37
 from dataset_parsing import simulations_dataset as ds
@@ -1082,6 +1082,7 @@ def validate_model(autoencoder_layers, autoencoder_code_size, pt=False, noise=Fa
         results.append(scores)
 
     return results
+
 
 def main_ensemble_stacked():
     range_min = 1

@@ -8,7 +8,7 @@ from sklearn.metrics import silhouette_score
 from dataset_parsing.read_kampff import read_kampff_c37, read_kampff_c28
 from autoencoder import run_autoencoder
 from ae_parameters import output_activation, loss_function
-from metrics import compute_real_metrics_gt_and_clust_labels, compute_metrics
+from validation.performance import compute_metrics, compute_real_metrics_gt_and_clust_labels
 from preprocess.data_scaling import choose_scale
 from visualization import scatter_plot
 
