@@ -5,8 +5,8 @@ from itertools import combinations, permutations
 from lp_solve import lp_solve
 from scipy.optimize import linprog
 
-from validation.rank_agg1.rank_aggregator import RankAggregator
-from validation.rank_agg2.rankagg import FullListRankAggregator
+from validation.rank_aggregation.rank_agg1.rank_aggregator import RankAggregator
+from validation.rank_aggregation.rank_agg2.rankagg import FullListRankAggregator
 
 os.chdir("../")
 

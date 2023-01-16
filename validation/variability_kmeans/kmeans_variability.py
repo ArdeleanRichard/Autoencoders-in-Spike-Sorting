@@ -12,32 +12,12 @@ os.chdir("../")
 SIM_NR = 4
 spikes, labels = ds.get_dataset_simulation_pca_2d(simNr=SIM_NR, align_to_peak=2)
 
-
-
-RUNS = 1000
-# all_metrics = []
-# for i in range(RUNS):
-#     if i % 10 == 0:
-#         print(i)
-#     metrics = compute_metrics_by_kmeans(spikes, labels)
-#     all_metrics.append(metrics)
-# all_metrics = np.array(all_metrics)
-#
-# np.savetxt(f"./validation_kmeans/kmeans_variability{RUNS}.csv", all_metrics, fmt="%.2f", delimiter=",")
-
-
-all_metrics = np.loadtxt(f"./validation_kmeans/kmeans_variability{RUNS}.csv", dtype=float, delimiter=",")
-print(all_metrics.shape)
-all_metrics[:, 5] = all_metrics[:, 5] / np.amax(all_metrics[:, 5])
-all_metrics = all_metrics.T.tolist()
-
-TESTS = 1
+RUNS = 10
 
 METHODS = ['K-Means']
-metric_names = ['ARI', 'AMI', 'V-Measure', 'FMI', 'DBS', 'CHS', 'SS']
+metric_names = ['ARI', 'AMI', 'V-Measure', 'DBS', 'CHS', 'SS']
 box_colors = ['darkkhaki', 'royalblue', 'pink', 'lightgreen']
 weights = ['bold', 'semibold', 'light', 'heavy']
-
 
 def plot_box(data):
     fig, ax1 = plt.subplots(figsize=(10, 6))
@@ -105,4 +85,26 @@ def plot_box(data):
     plt.savefig(f"./validation_kmeans/kmeans_variability_{RUNS}_boxplot")
     plt.show()
 
-plot_box(all_metrics)
+
+def main(program):
+    if program == 'save':
+        all_metrics = []
+        for i in range(RUNS):
+            if i % 10 == 0:
+                print(i)
+            metrics = compute_metrics_by_kmeans(spikes, labels)
+            all_metrics.append(metrics)
+        all_metrics = np.array(all_metrics)
+
+        np.savetxt(f"./validation_kmeans/kmeans_variability{RUNS}.csv", all_metrics, fmt="%.2f", delimiter=",")
+    elif program == 'plot':
+        all_metrics = np.loadtxt(f"./validation_kmeans/kmeans_variability{RUNS}.csv", dtype=float, delimiter=",")
+        print(all_metrics.shape)
+        all_metrics[:, 5] = all_metrics[:, 5] / np.amax(all_metrics[:, 5])
+        all_metrics = all_metrics.T.tolist()
+
+        plot_box(all_metrics)
+
+
+main("save")
+main("plot")

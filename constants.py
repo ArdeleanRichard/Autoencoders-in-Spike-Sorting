@@ -1,4 +1,4 @@
-DATA_FOLDER_PATH = "../DATA/"
+DATA_FOLDER_PATH = "../../DATA/"
 
 dataName = ["S1", "S2", "U", "UO", "Simulation"]
 dataFiles = ["s1_labeled.csv", "s2_labeled.csv", "unbalance.csv"]
@@ -42,7 +42,7 @@ LABEL_COLOR_MAP = {-1: 'gray',
                    }
 
 
-LABEL_COLOR_MAP2 = {
+LABEL_COLOR_MAP_SMALLER = {
                    0: 'lightskyblue',
                    1: 'deepskyblue',
                    2: 'violet',

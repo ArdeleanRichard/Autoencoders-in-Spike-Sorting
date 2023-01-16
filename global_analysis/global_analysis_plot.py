@@ -6,7 +6,7 @@ from matplotlib.patches import Polygon
 import pandas as pd
 from scipy.stats import stats
 
-from constants import LABEL_COLOR_MAP2
+from constants import LABEL_COLOR_MAP_SMALLER
 import seaborn as sn
 
 
@@ -56,7 +56,7 @@ def plot_box(title, data, METHODS, conditions):
         med = bp['medians'][i]
 
         # Alternate among colors
-        ax1.add_patch(Polygon(box_coords, facecolor=LABEL_COLOR_MAP2[i % len(METHODS)]))
+        ax1.add_patch(Polygon(box_coords, facecolor=LABEL_COLOR_MAP_SMALLER[i % len(METHODS)]))
 
         ax1.plot(np.average(med.get_xdata()), np.average(data[i]), color='w', marker='*', markeredgecolor='k')
 
