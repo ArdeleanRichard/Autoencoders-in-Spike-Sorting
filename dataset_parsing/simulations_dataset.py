@@ -1,12 +1,12 @@
 import numpy as np
 from scipy.io import loadmat
 from sklearn.decomposition import PCA
-from constants import DATA_FOLDER_PATH
+from utils.constants import SYNTHETIC_DATA_FOLDER_PATH
 
 
 def load_dictionaries(simNr):
-    simulation_dictionary = loadmat(DATA_FOLDER_PATH + '/SIMULATIONS/simulation_' + str(simNr) + '.mat')
-    ground_truth_dictionary = loadmat(DATA_FOLDER_PATH + '/SIMULATIONS/ground_truth.mat')
+    simulation_dictionary = loadmat(SYNTHETIC_DATA_FOLDER_PATH + '/simulation_' + str(simNr) + '.mat')
+    ground_truth_dictionary = loadmat(SYNTHETIC_DATA_FOLDER_PATH + '/ground_truth.mat')
     return simulation_dictionary, ground_truth_dictionary
 
 

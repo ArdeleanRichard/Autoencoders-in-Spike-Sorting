@@ -8,7 +8,7 @@ from sklearn.metrics import adjusted_mutual_info_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import shuffle
 
-from autoencoder import run_autoencoder
+from ae_function import run_autoencoder
 from dataset_parsing.simulations_dataset import get_dataset_simulation
 from validation.performance import compute_metrics_by_kmeans, compare_metrics, compute_metrics, \
     compute_real_metrics_by_kmeans
@@ -17,6 +17,7 @@ from dataset_parsing.read_tins_m_data import get_tins_data
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
+os.chdir("../")
 
 def evaluate_simdata(method):
     metrics = []
@@ -46,78 +47,25 @@ def evaluate_simdata(method):
 # evaluate_simdata("pca")
 # evaluate_simdata("ica")
 
-# EPOCHS = 50
-# LAYERS = [70, 60, 50, 40, 30, 20, 10, 5]
-# for simulation_number in range(1, 96):
-#     if simulation_number == 25 or simulation_number == 44 or simulation_number == 78:
-#         continue
-#
-#     # data, labels = get_dataset_simulation(simNr=simulation_number, align_to_peak=2)
-#
-#     # for ae_type in ["orthogonal", "ae_pca", "lstm", "fft", "wfft"]:
-#     #     print(f"AE{ae_type}")
-#     #     metrics = []
-#     #
-#     #     features, _, gt = run_autoencoder(data_type="-", simulation_number=None,
-#     #                                       data=data, labels=labels, gt_labels=None, index=None,
-#     #                                       ae_type="normal", ae_layers=np.array(LAYERS), code_size=2,
-#     #                                       output_activation='tanh', loss_function='mse', scale="minmax", verbose=0,
-#     #                                       nr_epochs=EPOCHS, dropout=0.0,
-#     #                                       doPlot=False)
-#     #
-#     #     met = compute_metrics_by_kmeans(data, labels, show=False)
-#     #     metrics.append(met)
-#     #
-#     #     np.savetxt(f"./figures/global/{ae_type}_sim{simulation_number}.csv", np.array(metrics), fmt="%.3f",
-#     #                delimiter=",")
-#
-#     # for ae_type in ["shallow", "normal"]:
-#     for ae_type in ["orthogonal", "ae_pca", "lstm", "fft", "wfft", "tied", "contractive", "ae_pt"]:
-#     # for ae_type in ["tied", "contractive", "ae_pt"]:
-#         metrics = []
-#         for i in range(1, 3):
-#             print(f"SIM{simulation_number} - {ae_type} - {i}")
-#             features, labels, gt = run_autoencoder(data_type="sim", simulation_number=simulation_number,
-#                 data=None, labels=None, gt_labels=None, index=None,
-#                 ae_type="normal", ae_layers=np.array(LAYERS), code_size=2,
-#                 output_activation='tanh', loss_function='mse', scale="minmax", nr_epochs=EPOCHS, dropout=0.0,
-#                 doPlot=False, verbose=0)
-#
-#             met = compute_metrics_by_kmeans(features, labels, show=False)
-#             metrics.append(met)
-#         for i in range(1, 3):
-#             print(f"SIM{simulation_number} - {ae_type} - {i}")
-#             features, labels, gt = run_autoencoder(data_type="sim", simulation_number=simulation_number,
-#                 data=None, labels=None, gt_labels=None, index=None,
-#                 ae_type="normal", ae_layers=np.array(LAYERS), code_size=2,
-#                 output_activation='tanh', loss_function='mse', scale="minmax", nr_epochs=100, dropout=0.0,
-#                 doPlot=False, verbose=0)
-#
-#             met = compute_metrics_by_kmeans(features, labels, show=False)
-#             metrics.append(met)
-#
-#         np.savetxt(f"./figures/global/{ae_type}_sim{simulation_number}.csv", np.array(metrics), fmt="%.3f", delimiter=",")
-
-
 
 # ISOMAP SIMULATIONS
-# def grid_search_isomap(SIM_NR):
-#     spikes, labels = get_dataset_simulation(simNr=SIM_NR, align_to_peak=2)
-#     spikes, gt_labels = shuffle(spikes, labels, random_state=None)
-#
-#     metrics = []
-#     for nr_neigh in range(20, 140, 10):
-#         print(f"{SIM_NR} - {nr_neigh}")
-#         iso_2d = Isomap(n_neighbors=nr_neigh, neighbors_algorithm='kd_tree', n_components=2, eigen_solver='dense',
-#                         path_method='FW', metric='minkowski', n_jobs=-1)
-#         features = iso_2d.fit_transform(spikes)
-#         met = compute_metrics_by_kmeans(features, gt_labels, show=False)
-#         metrics.append(met)
-#
-#     np.savetxt(f"./figures/global/isomap_sim{SIM_NR}_40.csv", np.array(metrics), fmt="%.3f", delimiter=",")
-#
-#
-# for simulation_number in range(12, 96):
+def grid_search_isomap(SIM_NR):
+    spikes, labels = get_dataset_simulation(simNr=SIM_NR, align_to_peak=2)
+    spikes, gt_labels = shuffle(spikes, labels, random_state=None)
+
+    metrics = []
+    for nr_neigh in range(20, 140, 10):
+        print(f"{SIM_NR} - {nr_neigh}")
+        iso_2d = Isomap(n_neighbors=nr_neigh, neighbors_algorithm='kd_tree', n_components=2, eigen_solver='dense',
+                        path_method='FW', metric='minkowski', n_jobs=-1)
+        features = iso_2d.fit_transform(spikes)
+        met = compute_metrics_by_kmeans(features, gt_labels, show=False)
+        metrics.append(met)
+
+    np.savetxt(f"./figures/global/isomap_sim{SIM_NR}_40.csv", np.array(metrics), fmt="%.3f", delimiter=",")
+
+
+# for simulation_number in range(1, 96):
 #     if simulation_number == 25 or simulation_number == 44 or simulation_number == 78 \
 #             or simulation_number == 1 or simulation_number == 4 or simulation_number == 16 or simulation_number == 35:
 #         continue
@@ -125,30 +73,33 @@ def evaluate_simdata(method):
 
 
 
-# ISOMAP REALDATA
-def grid_search_isomap(index, k):
-    units_in_channel, labels = get_tins_data()
-    spikes = units_in_channel[index-1]
-    spikes = np.array(spikes)
-
-    metrics = []
-    metrics2 = []
-    for nr_neigh in range(140, 200, 10):
-        print(f"{index} - {nr_neigh}")
-        iso_2d = Isomap(n_neighbors=nr_neigh, neighbors_algorithm='kd_tree', n_components=2, eigen_solver='dense',
-                        path_method='FW', metric='minkowski', n_jobs=-1)
-        features = iso_2d.fit_transform(spikes)
-        met = compute_metrics_by_kmeans(features, labels, show=False)
-        metrics.append(met)
-
-        met, _ = compute_real_metrics_by_kmeans(features, k)
-        metrics2.append(met)
-
-    np.savetxt(f"./figures/global/isomap_real{index}_2.csv", np.array(metrics), fmt="%.3f", delimiter=",")
-    np.savetxt(f"./figures/global/isomap_real{index}_test2.csv", np.array(metrics2), fmt="%.3f", delimiter=",")
 
 
-grid_search_isomap(4, 3)
-grid_search_isomap(6, 4)
-grid_search_isomap(17, 3)
-grid_search_isomap(26, 4)
+
+
+
+# EPOCHS = 50
+# LAYERS = [70, 60, 50, 40, 30, 20, 10, 5]
+# for simulation_number in range(1, 96):
+#     if simulation_number == 25 or simulation_number == 44 or simulation_number == 78:
+#         continue
+#
+#     for ae_type in ["shallow", "normal", "orthogonal", "ae_pca", "lstm", "fft", "wfft", "tied", "contractive", "ae_pt"]:
+#         metrics = []
+#
+#         features, labels, gt = run_autoencoder(data_type="sim", simulation_number=simulation_number,
+#             data=None, labels=None, gt_labels=None, index=None,
+#             ae_type="normal", ae_layers=np.array(LAYERS), code_size=2,
+#             output_activation='tanh', loss_function='mse', scale="minmax", nr_epochs=EPOCHS, dropout=0.0,
+#             doPlot=False, verbose=0)
+#
+#         met = compute_metrics_by_kmeans(features, labels, show=False)
+#         metrics.append(met)
+#
+#         np.savetxt(f"./figures/global/{ae_type}_sim{simulation_number}.csv", np.array(metrics), fmt="%.3f", delimiter=",")
+
+
+
+
+
+

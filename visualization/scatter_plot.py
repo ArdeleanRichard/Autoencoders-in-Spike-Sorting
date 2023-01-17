@@ -3,7 +3,7 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 from sklearn import preprocessing
 
-import constants as cs
+import utils.constants as cs
 
 
 def plot(title, X, labels=None, plot=True, marker='o', alpha=1):

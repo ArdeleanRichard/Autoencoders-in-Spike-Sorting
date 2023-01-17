@@ -8,26 +8,26 @@ from scipy.optimize import linprog
 from validation.rank_aggregation.rank_agg1.rank_aggregator import RankAggregator
 from validation.rank_aggregation.rank_agg2.rankagg import FullListRankAggregator
 
-
+os.chdir("../")
 
 METRICS = ["ARI", "AMI", "VM", "DBS", "CHS", "SS"]
 METHODS = ["PCA", "ICA", "Isomap", "Shallow AE", "AE", "Tied AE", "PCA AE", "Pretrained AE", "LSTM AE", "FT AE", "WFT AE", "Orthogonal AE", "Contractive AE"]
 
 
 
-pca =               np.loadtxt(f"./figures/global/pca.csv", dtype=float, delimiter=",")
-ica =               np.loadtxt(f"./figures/global/ica.csv", dtype=float, delimiter=",")
-isomap =            np.loadtxt(f"./figures/global/isomap.csv", dtype=float, delimiter=",")
-ae_shallow =        np.loadtxt(f"./figures/global/ae_shallow.csv", dtype=float, delimiter=",")
-ae_normal =         np.loadtxt(f"./figures/global/ae_normal.csv", dtype=float, delimiter=",")
-ae_tied =           np.loadtxt(f"./figures/global/ae_tied.csv", dtype=float, delimiter=",")
-ae_pca =            np.loadtxt(f"./figures/global/ae_pca.csv", dtype=float, delimiter=",")
-ae_pt =             np.loadtxt(f"./figures/global/ae_pt.csv", dtype=float, delimiter=",")
-ae_lstm =           np.loadtxt(f"./figures/global/ae_lstm.csv", dtype=float, delimiter=",")
-ae_fft =            np.loadtxt(f"./figures/global/ae_fft.csv", dtype=float, delimiter=",")
-ae_wfft =           np.loadtxt(f"./figures/global/ae_wfft.csv", dtype=float, delimiter=",")
-ae_orthogonal =     np.loadtxt(f"./figures/global/ae_orthogonal.csv", dtype=float, delimiter=",")
-ae_contractive =    np.loadtxt(f"./figures/global/ae_contractive.csv", dtype=float, delimiter=",")
+pca =               np.loadtxt(f"./global_analysis/method_evals/pca.csv", dtype=float, delimiter=",")
+ica =               np.loadtxt(f"./global_analysis/method_evals/ica.csv", dtype=float, delimiter=",")
+isomap =            np.loadtxt(f"./global_analysis/method_evals/isomap.csv", dtype=float, delimiter=",")
+ae_shallow =        np.loadtxt(f"./global_analysis/method_evals/ae_shallow.csv", dtype=float, delimiter=",")
+ae_normal =         np.loadtxt(f"./global_analysis/method_evals/ae_normal.csv", dtype=float, delimiter=",")
+ae_tied =           np.loadtxt(f"./global_analysis/method_evals/ae_tied.csv", dtype=float, delimiter=",")
+ae_pca =            np.loadtxt(f"./global_analysis/method_evals/ae_pca.csv", dtype=float, delimiter=",")
+ae_pt =             np.loadtxt(f"./global_analysis/method_evals/ae_pt.csv", dtype=float, delimiter=",")
+ae_lstm =           np.loadtxt(f"./global_analysis/method_evals/ae_lstm.csv", dtype=float, delimiter=",")
+ae_fft =            np.loadtxt(f"./global_analysis/method_evals/ae_fft.csv", dtype=float, delimiter=",")
+ae_wfft =           np.loadtxt(f"./global_analysis/method_evals/ae_wfft.csv", dtype=float, delimiter=",")
+ae_orthogonal =     np.loadtxt(f"./global_analysis/method_evals/ae_orthogonal.csv", dtype=float, delimiter=",")
+ae_contractive =    np.loadtxt(f"./global_analysis/method_evals/ae_contractive.csv", dtype=float, delimiter=",")
 
 
 

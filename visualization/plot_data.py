@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-from constants import LABEL_COLOR_MAP
+from utils.constants import LABEL_COLOR_MAP
 
 
 def plot_spikes(title, spikes, limit=False, mean=False, color='blue'):

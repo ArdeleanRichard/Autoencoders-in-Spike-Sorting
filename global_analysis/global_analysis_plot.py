@@ -6,9 +6,10 @@ from matplotlib.patches import Polygon
 import pandas as pd
 from scipy.stats import stats
 
-from constants import LABEL_COLOR_MAP_SMALLER
+from utils.constants import LABEL_COLOR_MAP_SMALLER
 import seaborn as sn
 
+os.chdir("../")
 
 def plot_box(title, data, METHODS, conditions):
     fig, ax1 = plt.subplots(figsize=(10, 6))
@@ -82,128 +83,23 @@ def plot_box(title, data, METHODS, conditions):
 
 
 
-# isomap = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("contractive"):
-#         isomap_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         isomap.append(isomap_sim[np.argmax(isomap_sim[:, 5])])
-#
-# isomap = np.array(isomap)
-# np.savetxt(f"./figures/global/isomap.csv", np.array(isomap), fmt="%.3f", delimiter=",")
-
-
-
-# ae_shallow = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("shallow"):
-#         ae_shallow_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_shallow.append(ae_shallow_sim[np.argmax(ae_shallow_sim[:, 5])])
-#
-# ae_shallow = np.array(ae_shallow)
-# np.savetxt(f"./figures/global/ae_shallow.csv", np.array(ae_shallow), fmt="%.3f", delimiter=",")
-
-
-# ae_normal = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("normal"):
-#         ae_normal_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_normal.append(ae_normal_sim[np.argmax(ae_normal_sim[:, 5])])
-#
-# ae_normal = np.array(ae_normal)
-# np.savetxt(f"./figures/global/ae_normal.csv", np.array(ae_normal), fmt="%.3f", delimiter=",")
-
-
-# ae_tied = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("tied"):
-#         ae_tied_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_tied.append(ae_tied_sim[np.argmax(ae_tied_sim[:, 5])])
-#
-# ae_tied = np.array(ae_tied)
-# np.savetxt(f"./figures/global/ae_tied.csv", np.array(ae_tied), fmt="%.3f", delimiter=",")
-
-
-# ae_pca = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("ae_pca"):
-#         ae_pca_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_pca.append(ae_pca_sim[np.argmax(ae_pca_sim[:, 5])])
-#
-# ae_pca = np.array(ae_pca)
-# np.savetxt(f"./figures/global/ae_pca.csv", np.array(ae_pca), fmt="%.3f", delimiter=",")
-
-# ae_pt = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("ae_pt"):
-#         ae_pt_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_pt.append(ae_pt_sim[np.argmax(ae_pt_sim[:, 5])])
-#
-# ae_pt = np.array(ae_pt)
-# np.savetxt(f"./figures/global/ae_pt.csv", np.array(ae_pt), fmt="%.3f", delimiter=",")
-
-# ae_lstm = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("lstm"):
-#         ae_lstm_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_lstm.append(ae_lstm_sim[np.argmax(ae_lstm_sim[:, 5])])
-#
-# ae_lstm = np.array(ae_lstm)
-# np.savetxt(f"./figures/global/ae_lstm.csv", np.array(ae_lstm), fmt="%.3f", delimiter=",")
-
-# ae_fft = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("fft"):
-#         ae_fft_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_fft.append(ae_fft_sim[np.argmax(ae_fft_sim[:, 5])])
-#
-# ae_fft = np.array(ae_fft)
-# np.savetxt(f"./figures/global/ae_fft.csv", np.array(ae_fft), fmt="%.3f", delimiter=",")
-
-# ae_wfft = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("wfft"):
-#         ae_wfft_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_wfft.append(ae_wfft_sim[np.argmax(ae_wfft_sim[:, 5])])
-#
-# ae_wfft = np.array(ae_wfft)
-# np.savetxt(f"./figures/global/ae_wfft.csv", np.array(ae_wfft), fmt="%.3f", delimiter=",")
-
-# ae_orthogonal = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("orthogonal"):
-#         ae_orthogonal_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_orthogonal.append(ae_orthogonal_sim[np.argmax(ae_orthogonal_sim[:, 5])])
-#
-# ae_orthogonal = np.array(ae_orthogonal)
-# np.savetxt(f"./figures/global/ae_orthogonal.csv", np.array(ae_orthogonal), fmt="%.3f", delimiter=",")
-
-# ae_contractive = []
-# for file in os.listdir("./figures/global/"):
-#     if file.startswith("contractive"):
-#         ae_contractive_sim = np.loadtxt(f"./figures/global/{file}", dtype=float, delimiter=",")
-#         ae_contractive.append(ae_contractive_sim[np.argmax(ae_contractive_sim[:, 5])])
-#
-# ae_contractive = np.array(ae_contractive)
-# np.savetxt(f"./figures/global/ae_contractive.csv", np.array(ae_contractive), fmt="%.3f", delimiter=",")
 
 
 
 
-
-
-pca =               np.loadtxt(f"./figures/global/pca.csv", dtype=float, delimiter=",")
-ica =               np.loadtxt(f"./figures/global/ica.csv", dtype=float, delimiter=",")
-isomap =            np.loadtxt(f"./figures/global/isomap.csv", dtype=float, delimiter=",")
-ae_shallow =        np.loadtxt(f"./figures/global/ae_shallow.csv", dtype=float, delimiter=",")
-ae_normal =         np.loadtxt(f"./figures/global/ae_normal.csv", dtype=float, delimiter=",")
-ae_tied =           np.loadtxt(f"./figures/global/ae_tied.csv", dtype=float, delimiter=",")
-ae_pca =            np.loadtxt(f"./figures/global/ae_pca.csv", dtype=float, delimiter=",")
-ae_pt =             np.loadtxt(f"./figures/global/ae_pt.csv", dtype=float, delimiter=",")
-ae_lstm =           np.loadtxt(f"./figures/global/ae_lstm.csv", dtype=float, delimiter=",")
-ae_fft =            np.loadtxt(f"./figures/global/ae_fft.csv", dtype=float, delimiter=",")
-ae_wfft =           np.loadtxt(f"./figures/global/ae_wfft.csv", dtype=float, delimiter=",")
-ae_orthogonal =     np.loadtxt(f"./figures/global/ae_orthogonal.csv", dtype=float, delimiter=",")
-ae_contractive =    np.loadtxt(f"./figures/global/ae_contractive.csv", dtype=float, delimiter=",")
+pca =               np.loadtxt(f"./global_analysis/method_evals/pca.csv", dtype=float, delimiter=",")
+ica =               np.loadtxt(f"./global_analysis/method_evals/ica.csv", dtype=float, delimiter=",")
+isomap =            np.loadtxt(f"./global_analysis/method_evals/isomap.csv", dtype=float, delimiter=",")
+ae_shallow =        np.loadtxt(f"./global_analysis/method_evals/ae_shallow.csv", dtype=float, delimiter=",")
+ae_normal =         np.loadtxt(f"./global_analysis/method_evals/ae_normal.csv", dtype=float, delimiter=",")
+ae_tied =           np.loadtxt(f"./global_analysis/method_evals/ae_tied.csv", dtype=float, delimiter=",")
+ae_pca =            np.loadtxt(f"./global_analysis/method_evals/ae_pca.csv", dtype=float, delimiter=",")
+ae_pt =             np.loadtxt(f"./global_analysis/method_evals/ae_pt.csv", dtype=float, delimiter=",")
+ae_lstm =           np.loadtxt(f"./global_analysis/method_evals/ae_lstm.csv", dtype=float, delimiter=",")
+ae_fft =            np.loadtxt(f"./global_analysis/method_evals/ae_fft.csv", dtype=float, delimiter=",")
+ae_wfft =           np.loadtxt(f"./global_analysis/method_evals/ae_wfft.csv", dtype=float, delimiter=",")
+ae_orthogonal =     np.loadtxt(f"./global_analysis/method_evals/ae_orthogonal.csv", dtype=float, delimiter=",")
+ae_contractive =    np.loadtxt(f"./global_analysis/method_evals/ae_contractive.csv", dtype=float, delimiter=",")
 
 
 
@@ -258,8 +154,6 @@ for metric_id, metric_name in enumerate(metric_names):
 
 
     # np.savetxt(f"./figures/global/ttest_{metric_name}.csv", np.array(ttest_matrix), delimiter=",")
-
-
 
     df_cm = pd.DataFrame(ttest_matrix, index=METHODS, columns=METHODS)
     plt.figure(figsize=(10, 7))

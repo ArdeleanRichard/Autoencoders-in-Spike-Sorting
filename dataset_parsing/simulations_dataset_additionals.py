@@ -105,51 +105,6 @@ def noise_extract(signal, spike_start, spike_length, noise_length):
 
 
 
-"""
-----------------------------------------------------------
-OBSOLETE
-----------------------------------------------------------
-"""
-
-
-def getDatasetSim97Plots(spikes, spike_pca_2d, spikes_pca_3d, labels):
-    # plot some spikes
-    ind = np.random.randint(0, len(labels), [20])
-    plt.plot(np.transpose(spikes[ind, :]))
-    plt.show()
-
-    # plot all spikes from one unit
-    unit = 15
-    ind = np.squeeze(np.argwhere(labels == unit))
-    plt.plot(np.transpose(spikes[ind, :]))
-    plt.title('Unit {}'.format(unit))
-    plt.show()
-
-    plotSimulation_PCA2D_grid(spike_pca_2d, labels)
-
-    plotSimulation_PCA3D(spikes_pca_3d, labels)
-
-
-def plotSimulation_PCA2D(spike_pca_2d, labels):
-    # plot scatter of pca_nonoise
-    plt.scatter(spike_pca_2d[:, 0], spike_pca_2d[:, 1], c=labels, marker='x', cmap='brg')
-    plt.show()
-
-
-def plotSimulation_PCA2D_grid(spike_pca_2d, labels):
-    # plot scatter of pca_nonoise
-    scatter_plot.plot_grid('Sim79Gridded', spike_pca_2d, labels + 1, 25, marker='x')
-    plt.show()
-
-
-def plotSimulation_PCA3D(spikes_pca_3d, labels):
-    # plot scatter of pca_nonoise in 3d
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(spikes_pca_3d[:, 0], spikes_pca_3d[:, 1], spikes_pca_3d[:, 2], c=labels, marker='x', cmap='brg')
-    plt.show()
-
-
 
 
 

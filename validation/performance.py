@@ -5,7 +5,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import fowlkes_mallows_score, adjusted_rand_score, adjusted_mutual_info_score, v_measure_score, \
     silhouette_score, calinski_harabasz_score, davies_bouldin_score, homogeneity_completeness_v_measure
 
-from autoencoder import run_autoencoder
+from ae_function import run_autoencoder
 from dataset_parsing.read_kampff import read_kampff_c28, read_kampff_c37
 from preprocess.data_scaling import choose_scale
 from validation.scores import purity_score
