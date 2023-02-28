@@ -2,14 +2,16 @@ import os
 
 import numpy as np
 
-from autoencoder import run_autoencoder
+from ae_function import run_autoencoder
 from validation.performance import compute_metrics_by_kmeans
 from matplotlib import pyplot as plt
 from matplotlib.patches import Polygon
 
-os.chdir("../")
+os.chdir("../../")
 os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 
+plt.rcParams['figure.dpi'] = 300
+plt.rcParams['savefig.dpi'] = 300
 
 
 
@@ -101,7 +103,7 @@ def plot_box(data, text="", other_methods=[]):
     fig.text(0.90, 0.09,   "ICA",       backgroundcolor="g", color='black', weight='roman', size='x-small')
     fig.text(0.90, 0.13,   "Isomap",    backgroundcolor="b", color='black', weight='roman', size='x-small')
 
-    plt.savefig(f"./validation_ae/aept_sim4_variability_{RUNS}_boxplot")
+    plt.savefig(f"./validation/variability_ae/aept_sim4_variability_{RUNS}_boxplot")
     # plt.savefig(f"./validation_ae/ae_normal_depth{depth}_sim4_variability_{RUNS}_HU_boxplot")
     plt.show()
 
@@ -147,7 +149,7 @@ def main(program):
                 # np.savetxt(f"./validation_ae/ae_{ae_type}_sim{SIM_NR}_variability_{RUNS}.csv", np.around(a=np.array(metrics).transpose(), decimals=3), delimiter=",")
                 # np.savetxt(f"./validation_ae/ae_{ae_type}_depth{len(LAYERS)}_sim{SIM_NR}_variability_{RUNS}.csv", metrics, fmt="%.3f", delimiter=",")
                 np.savetxt(
-                    f"./validation_ae/ae_{ae_type}_depth{len(LAYERS)}_sim{SIM_NR}_variability_{RUNS}_HU_do20.csv",
+                    f"./validation/variability_ae/ae_{ae_type}_depth{len(LAYERS)}_sim{SIM_NR}_variability_{RUNS}_HU_do20.csv",
                     metrics, fmt="%.3f", delimiter=",")
 
     elif program == 'plot':
@@ -160,7 +162,7 @@ def main(program):
         #     plot_box(all_metrics, f"Depth {depth} ")
 
         SIM_NR = 1
-        all_metrics = np.loadtxt(f"./validation_ae/ae_pytorch_sim{SIM_NR}_variability_{RUNS}_init_mod4.csv", dtype=float, delimiter=",")
+        all_metrics = np.loadtxt(f"./validation/variability_ae/ae_pytorch_sim{SIM_NR}_variability_{RUNS}_init_mod4.csv", dtype=float, delimiter=",")
         # print(all_metrics.shape)
 
         sim1_pca_scores = np.array([0.5, 0.74, 0.74, 1, 12020.59, 0.26])
@@ -192,3 +194,4 @@ def main(program):
         print(all_metrics)
         plot_box(all_metrics, f"", other_methods=[sim1_pca_scores, sim1_ica_scores, sim1_isomap_scores])
 
+main('plot')
