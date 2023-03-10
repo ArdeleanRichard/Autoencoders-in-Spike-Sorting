@@ -1,7 +1,17 @@
 # Autoencoders-in-Spike-Sorting
 Autoencoders, a type of neural network that allow for unsupervised learning, can be used in the feature extraction of spike sorting.
 
+This study has been published in PLOS One:
+- https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0282810
+- DOI: 10.1371/journal.pone.0282810
 
+## Citation
+We would appreciate it if you cite the paper when you use this work:
+
+- For Plain Text:
+```
+E.-R. Ardelean, A. Coporîie, A.-M. Ichim, M. Dînșoreanu, and R. C. Mureșan, “A study of autoencoders as a feature extraction technique for spike sorting,” PLOS ONE, vol. 18, no. 3, p. e0282810, Mar. 2023, doi: 10.1371/journal.pone.0282810.
+```
 
 ## Setup
 The 'requirements.txt' file indicates the dependencies required for running the code. 
