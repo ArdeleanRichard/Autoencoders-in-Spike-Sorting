@@ -35,4 +35,4 @@ DATA/
 
 
 # Contact
-If you have any questions about SBM, feel free to contact me. (Email: ardeleaneugenrichard@gmail.com)
+If you have any questions, feel free to contact me. (Email: ardeleaneugenrichard@gmail.com)
